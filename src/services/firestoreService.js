@@ -1,22 +1,25 @@
 import db from "../config/firestoreConfig.js";
+import logger from "../config/logger.js";
 
-export const saveUserAuthData = async (ghlAccountId, authData) => {
+export const saveUserAuthData = async (userID, authData) => {
   try {
-    await db.collection("ghl_users").doc(ghlAccountId).set(authData, { merge: true });
-    console.log("User auth data saved successfully.");
+    await db
+      .collection("ghl_users")
+      .doc(userID)
+      .set(authData, { merge: true });
   } catch (error) {
-    console.error("Error saving user auth data:", error);
+    logger.error("Error saving user auth data:", error);
     throw new Error("Database save failed.");
   }
 };
 
-export const getUserAuthData = async (ghlAccountId) => {
+export const getUserAuthData = async (userID) => {
   try {
-    const doc = await db.collection("ghl_users").doc(ghlAccountId).get();
+    const doc = await db.collection("ghl_users").doc(userID).get();
     if (!doc.exists) return null;
     return doc.data();
   } catch (error) {
-    console.error("Error retrieving user auth data:", error);
+    logger.error("Error retrieving user auth data:", error);
     throw new Error("Database read failed.");
   }
 };
