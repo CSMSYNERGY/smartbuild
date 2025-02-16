@@ -23,3 +23,12 @@ export const getUserAuthData = async (userID) => {
     throw new Error("Database read failed.");
   }
 };
+
+export const updateUserAuthData = async (userID, authData) => {
+  try {
+    await db.collection("ghl_users").doc(userID).update(authData);
+  } catch (error) {
+    logger.error("Error updating user auth data:", error);
+    throw new Error("Database update failed.");
+  }
+};

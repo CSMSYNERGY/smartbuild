@@ -1,6 +1,6 @@
-import logger from "../config/logger";
-import { getAccountType, isTokenExpired } from "../utils/authUtils";
-import { getUserAuthData, saveUserAuthData } from "./firestoreService";
+import logger from "../config/logger.js";
+import { getAccountType, isTokenExpired } from "../utils/authUtils.js";
+import { getUserAuthData, saveUserAuthData } from "./firestoreService.js";
 
 export const authenticateAndSaveUser = async (code) => {
   const authData = await getAccessTokenFromAuthCode(code);

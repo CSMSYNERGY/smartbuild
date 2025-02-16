@@ -1,4 +1,4 @@
-import { authenticateAndSaveUser } from "../services/authService";
+import { authenticateAndSaveUser } from "../services/authService.js";
 
 export const authorize = (req, res) => {
   const ghlAuthUrl = `https://marketplace.gohighlevel.com/oauth/authorize?response_type=code&client_id=${process.env.GHL_CLIENT_ID}&redirect_uri=${process.env.REDIRECT_URI}&scope=${process.env.GHL_SCOPES}`;
