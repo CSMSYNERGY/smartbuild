@@ -17,7 +17,7 @@ export const getAccountType = (tokenResponse) => {
   }
 
   // If `locationId` exists, user belongs to a sub-account
-  return tokenResponse.locationId ? "sub-account" : "agency";
+  return tokenResponse.locationId ? "location" : "company";
 };
 
 export const isTokenExpired = (createdAt, expiresIn) => {

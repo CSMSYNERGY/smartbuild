@@ -1,73 +1,80 @@
 import axios from "axios";
 import logger from "../config/logger.js";
-import { OPPORTUNITY_MODEL_MAPPING } from '../constants/startingModels.js';
-
+import { OPPORTUNITY_MODEL_MAPPING } from "../constants/startingModels.js";
+import { parseRevision, parsePayments, parseMeasurement, parsePrice, parseDateToFormat } from "../utils/smartbuildUtils.js";
 export const getAccessToken = async (username, password) => {
   try {
     const response = await axios.post(
-      process.env.SMARTBUILD_AUTH_URL,
+      `${process.env.SMARTBUILD_BASE_URL}/token`,
       new URLSearchParams({
-        grant_type: "password", 
+        grant_type: "password",
         username: username,
-        password: password
+        password: password,
       }),
       {
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       }
     );
 
     if (response.status !== 200) {
-      throw new Error(`Get authorization failed with status ${response.status}`);
+      throw new Error(
+        `Get authorization failed with status ${response.status}`
+      );
     }
 
     return response.data.access_token;
-
   } catch (error) {
-    logger.error("Error getting access token:", error);
-    throw error instanceof Error 
-      ? error 
-      : new Error("Error fetching job data: " + error);
+    logger.error(
+      `Error getting access token from smartbuild: ${error.message}`
+    );
+    throw error;
   }
 };
 
-export async function getStartingModel(accessToken, opportunityType) {
+export const getStartingModel = async (accessToken, opportunityType) => {
   const model_id = OPPORTUNITY_MODEL_MAPPING[opportunityType];
-  const url = `${process.env.SMARTBUILD_BASE_URL}/V2/GetStartingModel?startingModelId=${model_id}`;
-  
-  try {
-    const response = await customRequest.get(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    
-    if (response.status !== 200) {
-      throw new Error(`Get model request failed for url ${url} with status ${response.status}`);
-    }
-    
-    return response.data;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error(error);
-  }
-}
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetStartingModel?startingModelId=${model_id}`;
 
-export async function getExistingModel(accessToken, jobId) {
-  const url = `${process.env.SMARTBUILD_BASE_URL}/V2/GetJobDataModel?jobId=${jobId}`;
-  
   try {
-    const response = await customRequest.get(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-    
+
     if (response.status !== 200) {
-      throw new Error(`Get existing model request failed for url ${url} with status ${response.status}`);
+      throw new Error(
+        `Get model request failed for url ${url} with status ${response.status}`
+      );
     }
-    
+
     return response.data;
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Error fetching model: " + error);
+    logger.error(`Error fetching starting model: ${error.message}`);
+    throw error;
   }
-}
+};
+
+export const getExistingModel = async (accessToken, jobId) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetJobDataModel?jobId=${jobId}`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Get existing model request failed for url ${url} with status ${response.status}`
+      );
+    }
+
+    return response.data;
+  } catch (error) {
+    logger.error(`Error fetching existing model: ${error.message}`);
+    throw error;
+  }
+};
 
 export function setInputAnswers(modelAnswers, inputAnswers) {
   if (!modelAnswers || !Array.isArray(modelAnswers.Answers)) {
@@ -87,32 +94,125 @@ export function setInputAnswers(modelAnswers, inputAnswers) {
       notFoundIds.push(id);
     }
   }
-  
+
   if (notFoundIds.length > 0) {
-    console.warn("Some input answers were not available in the job model and added manually:", notFoundIds);
+    logger.warn(
+      "Some input answers were not available in the job model and added manually:",
+      notFoundIds
+    );
   }
-  
+
   return modelAnswers;
 }
 
 export async function createOrEditJob(accessToken, jobId, modelAnswers) {
-  const url = `${process.env.SMARTBUILD_BASE_URL}/V2/SetJobDataModel?jobId=${jobId}`;
-  
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/SetJobDataModel?jobId=${jobId}`;
+
   try {
-    const postResponse = await customRequest.post(url, {
-      data: modelAnswers,
+    const postResponse = await axios.post(url, modelAnswers, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-      }
+      },
     });
 
     if (postResponse.status !== 200) {
-      throw new Error(`Create job request failed for url ${url} with status ${postResponse.status}`);
+      throw new Error(
+        `Create job request failed for url ${url} with status ${postResponse.status}`
+      );
     }
 
     return String(postResponse.data);
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Create or edit job failed:" + error);
+    logger.error(`Create or edit job failed: ${error.message}`);
+    throw error;
   }
 }
+
+export const getJobData = async (accessToken, jobId, jobInfoIds, jobTokenValues) => {
+  const jobData = await getExistingJobData(accessToken, jobId, jobInfoIds, jobTokenValues);
+  const [projectNameWithoutRev, revCount] = parseRevision(
+    jobData.AnswerResult["ProjectName"]
+  );
+
+  let result = {
+    NewOpportunityName: `${projectNameWithoutRev} ${jobData.TokenResult["MainBuildingWidth"]}x${jobData.TokenResult["MainBuildingLength"]}x${jobData.TokenResult["MainBuildingCeilingHeight"]}`,
+    TotalPrice: jobData.TokenResult["TotalPrice"],
+    Error: false,
+    Rev: revCount,
+    ...jobData.AnswerResult,
+  };
+
+  const payments = parsePayments(jobData.AnswerResult["PaymentSchedule"]);
+  if (Object.keys(payments).length > 0) {
+    Object.keys(payments).forEach((val) => {
+      payments[val] = Number(
+        ((payments[val] * jobData.TokenResult["TotalPrice"]) / 100).toFixed(2)
+      );
+    });
+
+    result = { ...result, ...payments };
+  }
+
+  return result;
+};
+
+const getExistingJobData = async (token, jobId, jobInfoIds, jobTokenValues) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetJobData?jobId=${jobId}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  try {
+    const response = await axios.get(url, { headers });
+    if (response.status != 200) {
+      throw new Error(
+        `Get existing job data request failed for url ${url} with status ${response.status}`
+      );
+    }
+
+    const tokenValues = response.data.TokenValues;
+
+    const tokenValueMap = tokenValues.reduce((acc, item) => {
+      acc[item.token] = item.value || ""; // Default value is an empty string if empty
+      return acc;
+    }, {});
+
+    const tokenResult = jobTokenValues.reduce((acc, key) => {
+      acc[key] = tokenValueMap[key] || ""; // Assign an empty string if the key is not present
+      return acc;
+    }, {});
+
+    tokenResult["MainBuildingWidth"] = parseMeasurement(
+      tokenResult["MainBuildingWidth"]
+    );
+    tokenResult["MainBuildingLength"] = parseMeasurement(
+      tokenResult["MainBuildingLength"]
+    );
+    tokenResult["MainBuildingCeilingHeight"] = parseMeasurement(
+      tokenResult["MainBuildingCeilingHeight"]
+    );
+
+    tokenResult["TotalPrice"] = parsePrice(tokenResult["TotalPrice"]);
+
+    const answerValues = response.data.Answers;
+    const answerValueMap = answerValues.reduce((acc, item) => {
+      acc[item.Id] = item.Value || "";
+      return acc;
+    }, {});
+
+    const answerResult = jobInfoIds.reduce((acc, key) => {
+      acc[key] = answerValueMap[key] || ""; // Assign an empty string if the key is not present
+      return acc;
+    }, {});
+
+    answerResult["ForcastCloseDate"] = parseDateToFormat(
+      answerResult["ForcastCloseDate"]
+    );
+
+    return { TokenResult: tokenResult, AnswerResult: answerResult };
+  } catch (error) {
+    logger.error(`Error fetching job data: ${error.message}`);
+    throw error;
+  }
+};
