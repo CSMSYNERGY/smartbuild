@@ -1,11 +1,12 @@
-import logger from "../config/logger.js";
 import { GHL_WEBHOOK_PUBLIC_KEY } from "../constants/authConstants.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
+import crypto from "crypto";  
 
 export const verifyWebhook = (req, res, next) => {
   try {
     const signature = req.headers["x-wh-signature"];
     if (!signature) {
-      return res.status(401).json({ error: "Unauthorized: Missing Signature" });
+      throw new AppError("Unauthorized: Missing Signature", 401, ErrorCodes.UNAUTHORIZED);
     }
     const payload = JSON.stringify(req.body);
     const verifier = crypto.createVerify("SHA256");
@@ -13,11 +14,10 @@ export const verifyWebhook = (req, res, next) => {
     verifier.end();
     const isValid = verifier.verify(GHL_WEBHOOK_PUBLIC_KEY, signature, "base64");
     if (!isValid) {
-      return res.status(401).json({ error: "Unauthorized: Invalid Signature" });
+      throw new AppError("Unauthorized: Invalid Signature", 401,  ErrorCodes.UNAUTHORIZED);
     }
     next(); 
   } catch (error) {
-    logger.error("Webhook verification failed:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    next(error);
   }
 };

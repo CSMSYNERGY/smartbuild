@@ -1,8 +1,13 @@
 import axios from "axios";
 import logger from "../config/logger.js";
 import { getAccountType, isTokenExpired } from "../utils/authUtils.js";
-import { getCompanyAuthData, saveCompanyAuthData } from "./firestoreService.js";
-import { getLocationData, saveLocationData } from "./firestoreService.js";
+import {
+  saveCompanyAuthData,
+  findCompanyByLocation,
+  getLocationData,
+  saveLocationData,
+} from "./firestoreService.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
 
 export const authenticateAndSaveUser = async (code) => {
   const authData = await getAccessTokenFromAuthCode(code);
@@ -35,21 +40,9 @@ export const getAccessTokenFromAuthCode = async (code) => {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        validateStatus: false, // Don't throw on non-2xx status
       }
     );
-    if (response.status !== 200) {
-      logger.error("GHL OAuth error:", {
-        status: response.status,
-        data: response.data,
-        headers: response.headers,
-      });
-      throw new Error(
-        `Access token retrieval failed with status ${
-          response.status
-        }: ${JSON.stringify(response.data)}`
-      );
-    }
+
     const accountType = getAccountType(response.data);
     const { access_token, refresh_token, expires_in, scope, userId } =
       response.data;
@@ -72,12 +65,11 @@ export const getAccessTokenFromAuthCode = async (code) => {
 
     return result;
   } catch (error) {
-    logger.error("Error getting access token from auth code:", {
-      message: error.message,
-      response: error.response?.data,
-      stack: error.stack,
-    });
-    throw error;
+    throw new AppError(
+      "Error getting access token from auth code.",
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
   }
 };
 
@@ -105,43 +97,56 @@ export const getAccessTokenFromRefreshToken = async (
       }
     );
 
-    if (response.status !== 200) {
-      throw new Error(`Token refresh failed with status ${response.status}`);
-    }
-
+    const accountType = getAccountType(response.data);
     const { access_token, refresh_token, expires_in, scope, userId } =
       response.data;
-    // Return the new access token data
-    return {
+
+    const result = {
       userId: userId,
+      accountType: accountType,
       accessToken: access_token,
       refreshToken: refresh_token,
       expiresIn: expires_in,
       scopes: scope,
       created: Math.floor(Date.now() / 1000),
     };
+
+    if (accountType === "company") {
+      result.companyId = response.data.companyId;
+    } else {
+      result.locationId = response.data.locationId;
+    }
+
+    return result;
   } catch (error) {
-    logger.error("Error refreshing access token", error);
-    throw error;
+    logger.error("Error refreshing access token", error.response?.data);
+    throw new AppError(
+      "Error refreshing access token.",
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
   }
 };
 
-export const getAuthenticatedCompany = async (companyId) => {
+export const getAuthenticatedCompanyByLocation = async (locationId) => {
   try {
-    const authData = await getCompanyAuthData(companyId);
-
-    if (!authData) {
-      throw new Error("Company authentication data not found.");
+    const companyData = await findCompanyByLocation(locationId);
+    if (!companyData) {
+      throw new AppError(
+        "Company authentication data not found.",
+        404,
+        ErrorCodes.COMPANY_NOT_FOUND
+      );
     }
 
-    if (isTokenExpired(authData.created, authData.expiresIn)) {
+    if (isTokenExpired(companyData.created, companyData.expiresIn)) {
       logger.info(
-        `Access token expired for company ${companyId}. Refreshing...`
+        `Access token expired for company ${companyData.companyId}. Refreshing...`
       );
 
       // Get new access token
       const newAuthData = await getAccessTokenFromRefreshToken(
-        authData.refreshToken,
+        companyData.refreshToken,
         "Company"
       );
 
@@ -152,7 +157,7 @@ export const getAuthenticatedCompany = async (companyId) => {
     }
 
     // Return existing auth data if not expired
-    return authData;
+    return companyData;
   } catch (error) {
     logger.error("Error retrieving authenticated company:", error.message);
     throw error;
@@ -195,7 +200,6 @@ export const getLocationAccessTokenFromCompanyToken = async (
       companyId: companyId,
       locationId: locationId,
     });
-
     const response = await axios.post(
       `${process.env.GHL_BASE_URL}/oauth/locationToken`,
       formData,
@@ -203,20 +207,10 @@ export const getLocationAccessTokenFromCompanyToken = async (
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Bearer ${companyToken}`,
+          Version: process.env.GHL_DEFAULT_API_VERSION,
         },
-        validateStatus: false, // Don't throw on non-2xx status
       }
     );
-
-    if (response.status !== 200) {
-      logger.error("GHL Location Token error:", {
-        status: response.status,
-        data: response.data,
-      });
-      throw new Error(
-        `Location token retrieval failed with status ${response.status}`
-      );
-    }
 
     const { access_token, refresh_token, expires_in } = response.data;
 
@@ -239,7 +233,11 @@ export const getAuthenticatedLocation = async (locationId) => {
   try {
     const locationData = await findAndStoreLocationToken(locationId);
     if (!locationData) {
-      throw new Error("Location authentication data not found.");
+      throw new AppError(
+        `Location ${locationId} not found`,
+        404,
+        ErrorCodes.LOCATION_NOT_FOUND
+      );
     }
 
     if (isTokenExpired(locationData.created, locationData.expiresIn)) {
@@ -262,6 +260,7 @@ export const getAuthenticatedLocation = async (locationId) => {
     // Return existing auth data if not expired
     return locationData;
   } catch (error) {
+    if (error instanceof AppError) throw error;
     logger.error("Error getting location auth data:", {
       locationId,
       message: error.message,
@@ -273,48 +272,29 @@ export const getAuthenticatedLocation = async (locationId) => {
 };
 
 export const findAndStoreLocationToken = async (locationId) => {
-  try {
-    // First try to find the location document
-    const locationData = await getLocationData(locationId);
-    if (locationData) {
-      return locationData;
-    }
-
-    // If location not found, search in company users
-    const companySnapshot = await db
-      .collection("companies")
-      .where("locationsAvailable", "array-contains", locationId)
-      .limit(1)
-      .get();
-
-    if (companySnapshot.empty) {
-      return null;
-    }
-
-    const companyDoc = companySnapshot.docs[0];
-    const companyData = companyDoc.data();
-
-    const locationToken = await getLocationAccessTokenFromCompanyToken(
-      companyData.accessToken,
-      companyData.companyId,
-      locationId
-    );
-
-    // Store the location token using the service function
-    const locationDataToStore = {
-      ...locationToken,
-      created: Math.floor(Date.now() / 1000),
-      companyId: companyData.companyId,
-    };
-
-    await saveLocationData(locationId, locationDataToStore);
-    return locationDataToStore;
-  } catch (error) {
-    logger.error("Error in findAndStoreLocationToken:", {
-      locationId,
-      message: error.message,
-      stack: error.stack,
-    });
-    throw error;
+  const locationData = await getLocationData(locationId);
+  if (locationData) {
+    return locationData;
   }
+
+  // If location not found, search in company users
+  const companyData = await getAuthenticatedCompanyByLocation(locationId);
+  if (!companyData) {
+    return null;
+  }
+
+  const locationToken = await getLocationAccessTokenFromCompanyToken(
+    companyData.accessToken,
+    companyData.companyId,
+    locationId
+  );
+
+  const locationDataToStore = {
+    ...locationToken,
+    created: Math.floor(Date.now() / 1000),
+    companyId: companyData.companyId,
+  };
+
+  await saveLocationData(locationId, locationDataToStore);
+  return locationDataToStore;
 };
