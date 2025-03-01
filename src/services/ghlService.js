@@ -84,7 +84,7 @@ export const getOpportunity = async (accessToken, opportunityId) => {
 };
 
 
-export const getOpportunityCustomFields = async (accessToken, locationId) => {
+export const retrieveOpportunityCustomFields = async (accessToken, locationId) => {
   const url = `${process.env.GHL_BASE_URL}/locations/${locationId}/customFields?model=opportunity`;
 
   try {

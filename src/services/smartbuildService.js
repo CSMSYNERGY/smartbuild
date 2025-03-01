@@ -1,8 +1,16 @@
 import axios from "axios";
 import logger from "../config/logger.js";
 import { OPPORTUNITY_MODEL_MAPPING } from "../constants/startingModels.js";
-import { parseRevision, parsePayments, parseMeasurement, parsePrice, parseDateToFormat } from "../utils/smartbuildUtils.js";
-export const getAccessToken = async (username, password) => {
+import {
+  parseRevision,
+  parsePayments,
+  parseMeasurement,
+  parsePrice,
+  parseDateToFormat,
+} from "../utils/smartbuildUtils.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
+import { Timestamp } from "@google-cloud/firestore";
+export const getSmartbuildToken = async (username, password) => {
   try {
     const response = await axios.post(
       `${process.env.SMARTBUILD_BASE_URL}/token`,
@@ -24,12 +32,52 @@ export const getAccessToken = async (username, password) => {
       );
     }
 
-    return response.data.access_token;
+    return {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expires: Timestamp.fromDate(new Date(response.data[".expires"])),
+    };
   } catch (error) {
-    logger.error(
-      `Error getting access token from smartbuild: ${error.message}`
+    throw new AppError(
+      `Error getting access token from smartbuild: ${error.message}`,
+      401,
+      ErrorCodes.UNAUTHORIZED
     );
-    throw error;
+  }
+};
+
+export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
+  try {
+    const response = await axios.post(
+      `${process.env.SMARTBUILD_BASE_URL}/token`,
+      new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Get authorization failed with status ${response.status}`
+      );
+    }
+
+    return {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expires: Timestamp.fromDate(new Date(response.data[".expires"])),
+    };
+  } catch (error) {
+    throw new AppError(
+      `Error getting access token from smartbuild: ${error.message}`,
+      401,
+      ErrorCodes.UNAUTHORIZED
+    );
   }
 };
 
@@ -50,8 +98,11 @@ export const getStartingModel = async (accessToken, opportunityType) => {
 
     return response.data;
   } catch (error) {
-    logger.error(`Error fetching starting model: ${error.message}`);
-    throw error;
+    throw new AppError(
+      `Error fetching starting model: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 };
 
@@ -71,8 +122,11 @@ export const getExistingModel = async (accessToken, jobId) => {
 
     return response.data;
   } catch (error) {
-    logger.error(`Error fetching existing model: ${error.message}`);
-    throw error;
+    throw new AppError(
+      `Error fetching existing model: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 };
 
@@ -124,13 +178,26 @@ export async function createOrEditJob(accessToken, jobId, modelAnswers) {
 
     return String(postResponse.data);
   } catch (error) {
-    logger.error(`Create or edit job failed: ${error.message}`);
-    throw error;
+    throw new AppError(
+      `Create or edit job failed: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 }
 
-export const getJobData = async (accessToken, jobId, jobInfoIds, jobTokenValues) => {
-  const jobData = await getExistingJobData(accessToken, jobId, jobInfoIds, jobTokenValues);
+export const getJobData = async (
+  accessToken,
+  jobId,
+  jobInfoIds,
+  jobTokenValues
+) => {
+  const jobData = await getExistingJobData(
+    accessToken,
+    jobId,
+    jobInfoIds,
+    jobTokenValues
+  );
   const [projectNameWithoutRev, revCount] = parseRevision(
     jobData.AnswerResult["ProjectName"]
   );
@@ -213,6 +280,21 @@ const getExistingJobData = async (token, jobId, jobInfoIds, jobTokenValues) => {
     return { TokenResult: tokenResult, AnswerResult: answerResult };
   } catch (error) {
     logger.error(`Error fetching job data: ${error.message}`);
+    throw error;
+  }
+};
+
+export const retrieveSmartbuildCustomFields = async (accessToken) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetQuestions`;
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  try {
+    const response = await axios.get(url, { headers });
+    return response.data;
+  } catch (error) {
+    logger.error(`Error fetching smartbuild custom fields: ${error.message}`);
     throw error;
   }
 };
