@@ -9,11 +9,13 @@ _ `PORT`: The port to run the app on. Default 3000. You also need to set the por
 - `GHL_DEFAULT_API_VERSION`: The default API version for the GoHighLevel API.
 - `REDIRECT_URI`: The OAuth redirect URI for the GoHighLevel API.
 - `SMARTBUILD_BASE_URL`: The base URL for the Smartbuild API.
+- `X_API_KEY`: The API key for the Smartbuild API. This is used to verify if the request is coming from the GHL. You need to set this in action header of 'x-api-key'. 
 
 ## Example Environment Variables
 PORT=3000
 GHL_CLIENT_ID=<YOUR_GHL_CLIENT_ID>
 GHL_CLIENT_SECRET=<YOUR_GHL_CLIENT_SECRET>
+X_API_KEY=<YOUR_X_API_KEY>
 GHL_SCOPES=contacts.write opportunities.write opportunities.readonly contacts.readonly locations.write locations.readonly users.readonly oauth.write oauth.readonly workflows.readonly locations/customFields.write locations/customFields.readonly
 GCP_PROJECT_ID=<YOUR_GCP_PROJECT_ID>
 GHL_BASE_URL=https://services.leadconnectorhq.com
