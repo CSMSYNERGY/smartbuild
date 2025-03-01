@@ -2,7 +2,10 @@ import {
   DEFAULT_JOB_INFO_IDS,
   DEFAULT_JOB_TOKEN_VALUES,
 } from "../constants/smartbuildAttributeDefaults.js";
-import { getJobData, retrieveSmartbuildCustomFields } from "../services/smartbuildService.js";
+import {
+  getJobData,
+  retrieveSmartbuildCustomFields,
+} from "../services/smartbuildService.js";
 import {
   getOpportunity,
   retrieveOpportunityCustomFields,
@@ -16,8 +19,8 @@ import { AppError, ErrorCodes } from "../models/errors.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
 
 export const updateOpportunityAction = async (req, res) => {
-  const { locationId, opportunityID, opportunityData } =
-    retrieveOpportunityData(req.body);
+  const locationId = getLocationIdFromRequest(req);
+  const { opportunityID, opportunityData } = retrieveOpportunityData(req.body);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
   const result = await updateOpportunity(
@@ -48,10 +51,7 @@ export const getOpportunityAction = async (req, res, next) => {
 };
 
 export const getOpportunityCustomFields = async (req, res, next) => {
-  const { locationId } = req.body.extras;
-  if (!locationId) {
-    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
-  }
+  const locationId = getLocationIdFromRequest(req);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
   const customFields = await retrieveOpportunityCustomFields(
@@ -123,3 +123,11 @@ export const createOrEditSmartbuildJob = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+const getLocationIdFromRequest = (req) => {
+    const locationId = req.headers["locationid"] || req.query.locationId;
+    if (!locationId) {
+      throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
+    }
+    return locationId;
+  };

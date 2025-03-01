@@ -5,24 +5,18 @@ describe("ghlActionRequestHandler", () => {
   describe("retrieveOpportunityData", () => {
     it("should successfully process valid request data", () => {
       const mockRequestBody = {
-        data: {
-          opportunityID: "123",
-          name: "Test Opportunity",
-          status: "active",
-          monetaryValue: 1000,
-          assignedTo: "user1",
-          customField1: "value1",
-          customField2: "value2",
-        },
-        extras: {
-          locationId: "loc123",
-        },
+        opportunityID: "123",
+        name: "Test Opportunity",
+        status: "active",
+        monetaryValue: 1000,
+        assignedTo: "user1",
+        customField1: "value1",
+        customField2: "value2",
       };
 
       const result = retrieveOpportunityData(mockRequestBody);
 
       expect(result).toEqual({
-        locationId: "loc123",
         opportunityID: "123",
         opportunityData: {
           name: "Test Opportunity",
@@ -39,20 +33,14 @@ describe("ghlActionRequestHandler", () => {
 
     it("should handle request with no custom fields", () => {
       const mockRequestBody = {
-        data: {
-          opportunityID: "123",
-          name: "Test Opportunity",
-          status: "active",
-        },
-        extras: {
-          locationId: "loc123",
-        },
+        opportunityID: "123",
+        name: "Test Opportunity",
+        status: "active",
       };
 
       const result = retrieveOpportunityData(mockRequestBody);
 
       expect(result).toEqual({
-        locationId: "loc123",
         opportunityID: "123",
         opportunityData: {
           name: "Test Opportunity",
@@ -92,17 +80,12 @@ describe("ghlActionRequestHandler", () => {
 
     it("should filter out null, empty string, and empty object values", () => {
       const mockRequestBody = {
-        data: {
-          opportunityID: "123",
-          name: "",
-          status: null,
-          pipelineStageId: undefined,
-          emptyObject: {},
-          validCustomField: "valid",
-        },
-        extras: {
-          locationId: "loc123",
-        },
+        opportunityID: "123",
+        name: "",
+        status: null,
+        pipelineStageId: undefined,
+        emptyObject: {},
+        validCustomField: "valid",
       };
 
       const result = retrieveOpportunityData(mockRequestBody);
@@ -114,16 +97,11 @@ describe("ghlActionRequestHandler", () => {
 
     it("should correctly separate standard and custom fields", () => {
       const mockRequestBody = {
-        data: {
-          opportunityID: "123",
-          name: "Test",
-          pipelineStageId: "stage1",
-          customField1: "custom1",
-          customField2: "custom2",
-        },
-        extras: {
-          locationId: "loc123",
-        },
+        opportunityID: "123",
+        name: "Test",
+        pipelineStageId: "stage1",
+        customField1: "custom1",
+        customField2: "custom2",
       };
 
       const result = retrieveOpportunityData(mockRequestBody);
