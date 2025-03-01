@@ -1,7 +1,7 @@
 import express from "express";
 import authRoutes from "./authRoutes.js";
 import actionsRoutes from "./actionsRoutes.js";
-import { verifyWebhook } from "../middlewares/authMiddleWare.js";
+import { verifyWebhook } from "../middlewares/authMiddleware.js";
 
 
 const router = express.Router();
