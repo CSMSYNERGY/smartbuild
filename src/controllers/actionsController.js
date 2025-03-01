@@ -23,13 +23,13 @@ export const updateOpportunityAction = async (req, res) => {
   const { opportunityID, opportunityData } = retrieveOpportunityData(req.body);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
-  const result = await updateOpportunity(
+  await updateOpportunity(
     authenticatedLocation.accessToken,
     opportunityID,
     opportunityData
   );
 
-  return res.status(200).json(result);
+  return res.status(200).send();
 };
 
 export const getOpportunityAction = async (req, res, next) => {
