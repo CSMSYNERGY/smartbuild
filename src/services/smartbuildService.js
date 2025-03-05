@@ -81,9 +81,15 @@ export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
   }
 };
 
-export const getStartingModel = async (accessToken, opportunityType) => {
-  const model_id = OPPORTUNITY_MODEL_MAPPING[opportunityType];
-  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetStartingModel?startingModelId=${model_id}`;
+export const createOrEditJob = async (accessToken, jobId, modelID, body) => {
+  var model = jobId === "0" ? await getStartingModel(accessToken, modelID) : await getExistingModel(accessToken, jobId);
+  var modelAnswers = setInputAnswers(model, body);
+  var jobRequest = await createOrEditJobRequest(accessToken, jobId, modelAnswers);
+  return jobRequest;
+}
+
+const getStartingModel = async (accessToken, modelID) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetStartingModel?startingModelId=${modelID}`;
 
   try {
     const response = await axios.get(url, {
@@ -106,7 +112,7 @@ export const getStartingModel = async (accessToken, opportunityType) => {
   }
 };
 
-export const getExistingModel = async (accessToken, jobId) => {
+const getExistingModel = async (accessToken, jobId) => {
   const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetJobDataModel?jobId=${jobId}`;
 
   try {
@@ -130,36 +136,29 @@ export const getExistingModel = async (accessToken, jobId) => {
   }
 };
 
-export function setInputAnswers(modelAnswers, inputAnswers) {
+function setInputAnswers(modelAnswers, inputAnswers) {
   if (!modelAnswers || !Array.isArray(modelAnswers.Answers)) {
-    throw new Error("Model answers are not properly initialized.");
+    throw new AppError(
+      "Model answers are not properly initialized.",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 
   const answerMap = new Map(
     modelAnswers.Answers.map((answer) => [answer.id, answer])
   );
 
-  const notFoundIds = [];
   for (const [id, value] of Object.entries(inputAnswers)) {
     if (answerMap.has(id)) {
       answerMap.get(id).value = value;
-    } else {
-      modelAnswers.Answers.push({ id, value });
-      notFoundIds.push(id);
     }
-  }
-
-  if (notFoundIds.length > 0) {
-    logger.warn(
-      "Some input answers were not available in the job model and added manually:",
-      notFoundIds
-    );
   }
 
   return modelAnswers;
 }
 
-export async function createOrEditJob(accessToken, jobId, modelAnswers) {
+async function createOrEditJobRequest(accessToken, jobId, modelAnswers) {
   const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/SetJobDataModel?jobId=${jobId}`;
 
   try {
