@@ -291,7 +291,18 @@ export const retrieveSmartbuildCustomFields = async (accessToken) => {
 
   try {
     const response = await axios.get(url, { headers });
-    return response.data;
+    const validTypes = ['string', 'string2', 'date'];
+    
+    const transformedData = response.data.Questions
+      .filter(question => validTypes.includes(question.Type) && Number(question.Index) < 2)
+      .map(question => ({
+        field: question.Id,
+        title: question.Prompt,
+        fieldType: 'string',
+        required: false
+      }));
+
+    return transformedData;
   } catch (error) {
     logger.error(`Error fetching smartbuild custom fields: ${error.message}`);
     throw error;
