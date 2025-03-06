@@ -8,7 +8,7 @@ import {
 } from "../controllers/actionsController.js";
 const router = express.Router();
 
-router.get("/retrieve-smartbuild-job", retrieveSmartbuildJob);
+router.post("/retrieve-smartbuild-job", retrieveSmartbuildJob);
 router.post("/create-or-edit-smartbuild-job", createOrEditSmartbuildJob);
 router.post("/smartbuild-custom-fields", getSmartbuildFields);
 router.post("/update-opportunity", updateOpportunityAction);
