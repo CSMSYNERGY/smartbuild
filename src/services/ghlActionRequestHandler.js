@@ -1,20 +1,13 @@
 import { AppError, ErrorCodes } from "../models/errors.js";
 
 export const retrieveOpportunityData = (requestBody) => {
-  if (!requestBody?.data || !requestBody?.extras) {
-    throw new AppError("Invalid request data structure", 400, ErrorCodes.BAD_REQUEST);
+  
+
+  const { opportunityID, ...opportunityFields } = requestBody;
+
+  if (!opportunityID) {
+    throw new AppError("Opportunity ID is required", 400, ErrorCodes.BAD_REQUEST);
   }
-
-  const { data, extras } = requestBody;
-  const { opportunityID, ...opportunityFields } = data;
-  const { locationId } = extras;
-
-  // Validate required fields
-  if (!opportunityID || !locationId) {
-    throw new AppError("Missing required fields", 400, ErrorCodes.BAD_REQUEST);
-  }
-
-  // Remove opportunityID from data and get remaining fields
 
   const nonCustomFields = ['pipelineStageId', 'name', 'status', 'monetaryValue', 'assignedTo'];
   
@@ -44,7 +37,6 @@ export const retrieveOpportunityData = (requestBody) => {
   };
 
   return {
-    locationId,
     opportunityID,
     opportunityData,
   };

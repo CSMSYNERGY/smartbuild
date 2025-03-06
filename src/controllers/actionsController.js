@@ -2,7 +2,12 @@ import {
   DEFAULT_JOB_INFO_IDS,
   DEFAULT_JOB_TOKEN_VALUES,
 } from "../constants/smartbuildAttributeDefaults.js";
-import { getJobData, retrieveSmartbuildCustomFields } from "../services/smartbuildService.js";
+import {
+  createOrEditJob,
+  getJobData,
+  getSmartbuildToken,
+  retrieveSmartbuildCustomFields,
+} from "../services/smartbuildService.js";
 import {
   getOpportunity,
   retrieveOpportunityCustomFields,
@@ -16,17 +21,17 @@ import { AppError, ErrorCodes } from "../models/errors.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
 
 export const updateOpportunityAction = async (req, res) => {
-  const { locationId, opportunityID, opportunityData } =
-    retrieveOpportunityData(req.body);
+  const locationId = getLocationIdFromRequest(req);
+  const { opportunityID, opportunityData } = retrieveOpportunityData(req.body);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
-  const result = await updateOpportunity(
+  await updateOpportunity(
     authenticatedLocation.accessToken,
     opportunityID,
     opportunityData
   );
 
-  return res.status(200).json(result);
+  return res.status(200).send();
 };
 
 export const getOpportunityAction = async (req, res, next) => {
@@ -48,10 +53,7 @@ export const getOpportunityAction = async (req, res, next) => {
 };
 
 export const getOpportunityCustomFields = async (req, res, next) => {
-  const { locationId } = req.body.extras;
-  if (!locationId) {
-    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
-  }
+  const locationId = getLocationIdFromRequest(req);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
   const customFields = await retrieveOpportunityCustomFields(
@@ -64,10 +66,7 @@ export const getOpportunityCustomFields = async (req, res, next) => {
 };
 
 export const getSmartbuildFields = async (req, res, next) => {
-  const { locationId } = req.body.extras;
-  if (!locationId) {
-    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
-  }
+  const locationId = getLocationIdFromRequest(req);
 
   const authenticatedSmartbuild = await getAuthenticatedSmartbuild(locationId);
 
@@ -81,45 +80,129 @@ export const getSmartbuildFields = async (req, res, next) => {
 };
 
 export const retrieveSmartbuildJob = async (req, res) => {
-  const { smartbuildJobId, smartbuildUserId, smartbuildUserPassword } =
-    req.query;
-  const jobInfoIds = req.query.jobInfoIds || DEFAULT_JOB_INFO_IDS;
-  const jobTokenValues = req.query.jobTokenValues || DEFAULT_JOB_TOKEN_VALUES;
+  const locationId = getLocationIdFromRequest(req);
+  const smartbuildAuthentication = await getSmartbuildAuthentication(
+    req.body,
+    locationId
+  );
+  const { jobID, extraUserAnswers, extraTokenValues } =
+    getRetrieveSmartbuildJobMetaData(req.body);
+  const jobInfoIds = [
+    ...new Set([...DEFAULT_JOB_INFO_IDS, ...extraUserAnswers]),
+  ];
+  const jobTokenValues = [
+    ...new Set([...DEFAULT_JOB_TOKEN_VALUES, ...extraTokenValues]),
+  ];
 
-  if (!smartbuildJobId || !smartbuildUserId || !smartbuildUserPassword)
-    return res.status(400).json({
-      error: "No sb job id, sb user id, or sb user password provided",
-    });
-
-  try {
-    const accessToken = await getAccessToken(
-      smartbuildUserId,
-      smartbuildUserPassword
-    );
-    const jobData = await getJobData(
-      accessToken,
-      smartbuildJobId,
-      jobInfoIds,
-      jobTokenValues
-    );
-    return res.status(200).json(jobData);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const jobData = await getJobData(
+    smartbuildAuthentication.accessToken,
+    jobID,
+    jobInfoIds,
+    jobTokenValues
+  );
+  return res.status(200).json(jobData);
 };
 
 export const createOrEditSmartbuildJob = async (req, res) => {
-  const { smartbuildJobId, smartbuildUserId, smartbuildUserPassword } =
-    req.query;
-  if (!smartbuildJobId || !smartbuildUserId || !smartbuildUserPassword)
-    return res.status(400).json({
-      error: "No sb job id, sb user id, or sb user password provided",
-    });
+  const locationId = getLocationIdFromRequest(req);
+  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(req.body);
+  const smartbuildAuthentication = await getSmartbuildAuthentication(
+    req.body,
+    locationId
+  );
+  const cleanedBody = removeProcessedKeys(req.body);
 
-  try {
-    //await authenticateAndSaveUser(code);
-    return res.sendStatus(200);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  const updatedOrCreatedJob = await createOrEditJob(
+    smartbuildAuthentication.accessToken,
+    isCreate ? "0" : jobID,
+    modelID,
+    cleanedBody
+  );
+  return res.status(200).json(updatedOrCreatedJob);
+};
+
+const getLocationIdFromRequest = (req) => {
+  const locationId = req.headers["locationid"] || req.query.locationId;
+  if (!locationId) {
+    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
   }
+  return locationId;
+};
+
+const getCreateOrEditJobMetaData = (body) => {
+  const isCreate = !body.jobID || body.jobID === "0";
+
+  if (isCreate) {
+    // For create requests, modelID must be present
+    if (!body.modelID) {
+      throw new AppError(
+        "ModelID is required for creating a new job",
+        400,
+        ErrorCodes.BAD_REQUEST
+      );
+    }
+    return {
+      isCreate: true,
+      modelID: body.modelID,
+      jobID: "0",
+    };
+  }
+
+  return {
+    isCreate: false,
+    modelID: null, // modelID is ignored for edit requests
+    jobID: body.jobID,
+  };
+};
+
+const getRetrieveSmartbuildJobMetaData = (body) => {
+  if (!body.jobID || body.jobID === "0") {
+    throw new AppError(
+      "JobID is required for retrieving a job",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  let extraUserAnswers = [];
+  if (body.extraUserAnswers && typeof body.extraUserAnswers === "string") {
+    extraUserAnswers = body.extraUserAnswers
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  let extraTokenValues = [];
+  if (body.extraTokenValues && typeof body.extraTokenValues === "string") {
+    extraTokenValues = body.extraTokenValues
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return {
+    jobID: body.jobID,
+    extraUserAnswers,
+    extraTokenValues,
+  };
+};
+
+const removeProcessedKeys = (body) => {
+  const updatedBody = { ...body };
+
+  delete updatedBody.jobID;
+  delete updatedBody.modelID;
+  delete updatedBody.username;
+  delete updatedBody.password;
+  return updatedBody;
+};
+
+const getSmartbuildAuthentication = async (body, locationId) => {
+  const { username, password } = body;
+
+  if (username && username.trim() !== "") {
+    return await getSmartbuildToken(username, password);
+  }
+
+  return await getAuthenticatedSmartbuild(locationId);
 };

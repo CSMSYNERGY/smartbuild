@@ -1,6 +1,5 @@
 import axios from "axios";
 import logger from "../config/logger.js";
-import { OPPORTUNITY_MODEL_MAPPING } from "../constants/startingModels.js";
 import {
   parseRevision,
   parsePayments,
@@ -81,9 +80,22 @@ export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
   }
 };
 
-export const getStartingModel = async (accessToken, opportunityType) => {
-  const model_id = OPPORTUNITY_MODEL_MAPPING[opportunityType];
-  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetStartingModel?startingModelId=${model_id}`;
+export const createOrEditJob = async (accessToken, jobId, modelID, body) => {
+  var model =
+    jobId === "0"
+      ? await getStartingModel(accessToken, modelID)
+      : await getExistingModel(accessToken, jobId);
+  var modelAnswers = setInputAnswers(model, body);
+  var jobRequest = await createOrEditJobRequest(
+    accessToken,
+    jobId,
+    modelAnswers
+  );
+  return jobRequest;
+};
+
+const getStartingModel = async (accessToken, modelID) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetStartingModel?startingModelId=${modelID}`;
 
   try {
     const response = await axios.get(url, {
@@ -106,7 +118,7 @@ export const getStartingModel = async (accessToken, opportunityType) => {
   }
 };
 
-export const getExistingModel = async (accessToken, jobId) => {
+const getExistingModel = async (accessToken, jobId) => {
   const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetJobDataModel?jobId=${jobId}`;
 
   try {
@@ -130,36 +142,29 @@ export const getExistingModel = async (accessToken, jobId) => {
   }
 };
 
-export function setInputAnswers(modelAnswers, inputAnswers) {
+function setInputAnswers(modelAnswers, inputAnswers) {
   if (!modelAnswers || !Array.isArray(modelAnswers.Answers)) {
-    throw new Error("Model answers are not properly initialized.");
+    throw new AppError(
+      "Model answers are not properly initialized.",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 
   const answerMap = new Map(
     modelAnswers.Answers.map((answer) => [answer.id, answer])
   );
 
-  const notFoundIds = [];
   for (const [id, value] of Object.entries(inputAnswers)) {
     if (answerMap.has(id)) {
       answerMap.get(id).value = value;
-    } else {
-      modelAnswers.Answers.push({ id, value });
-      notFoundIds.push(id);
     }
-  }
-
-  if (notFoundIds.length > 0) {
-    logger.warn(
-      "Some input answers were not available in the job model and added manually:",
-      notFoundIds
-    );
   }
 
   return modelAnswers;
 }
 
-export async function createOrEditJob(accessToken, jobId, modelAnswers) {
+async function createOrEditJobRequest(accessToken, jobId, modelAnswers) {
   const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/SetJobDataModel?jobId=${jobId}`;
 
   try {
@@ -205,7 +210,6 @@ export const getJobData = async (
   let result = {
     NewOpportunityName: `${projectNameWithoutRev} ${jobData.TokenResult["MainBuildingWidth"]}x${jobData.TokenResult["MainBuildingLength"]}x${jobData.TokenResult["MainBuildingCeilingHeight"]}`,
     TotalPrice: jobData.TokenResult["TotalPrice"],
-    Error: false,
     Rev: revCount,
     ...jobData.AnswerResult,
   };
@@ -279,8 +283,11 @@ const getExistingJobData = async (token, jobId, jobInfoIds, jobTokenValues) => {
 
     return { TokenResult: tokenResult, AnswerResult: answerResult };
   } catch (error) {
-    logger.error(`Error fetching job data: ${error.message}`);
-    throw error;
+    throw new AppError(
+      `Error fetching job data: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 };
 
@@ -292,9 +299,52 @@ export const retrieveSmartbuildCustomFields = async (accessToken) => {
 
   try {
     const response = await axios.get(url, { headers });
-    return response.data;
+    const validTypes = ["string", "string2", "date"];
+
+    const transformedData = response.data.Questions.filter(
+      (question) =>
+        validTypes.includes(question.Type) && Number(question.Index) < 2
+    ).map((question) => ({
+      field: question.Id,
+      title: question.Prompt,
+      fieldType: "string",
+      required: false,
+    }));
+
+    return transformedData;
   } catch (error) {
-    logger.error(`Error fetching smartbuild custom fields: ${error.message}`);
-    throw error;
+    throw new AppError(
+      `Error fetching smartbuild custom fields: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+};
+
+export const retrieveSmartbuildCustomFieldsForRetrieval = async (accessToken) => {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetQuestions`;
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  try {
+    const response = await axios.get(url, { headers });
+    const validTypes = ["string", "string2", "date"];
+
+    const transformedData = response.data.Questions.filter(
+      (question) =>
+        validTypes.includes(question.Type)
+    ).map((question) => ({
+      value: question.Id,
+      label: question.Prompt
+    }));
+
+    return transformedData;
+  } catch (error) {
+    throw new AppError(
+      `Error fetching smartbuild custom fields: ${error.message}`,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
   }
 };
