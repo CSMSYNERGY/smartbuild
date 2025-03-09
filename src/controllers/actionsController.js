@@ -21,7 +21,8 @@ import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js"
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
-  const { opportunityID, opportunityData } = retrieveOpportunityData(req.body);
+  const data = req.body?.data || req.body;
+  const { opportunityID, opportunityData } = retrieveOpportunityData(data);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
   await updateOpportunity(
@@ -65,14 +66,16 @@ export const getSmartbuildFields = async (req, res, next) => {
 export const retrieveSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
 
+  const data = req.body?.data || req.body;
+
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
   const smartbuildAuthentication = await getSmartbuildAuthentication(
-    req.body,
+    data,
     locationId
   );
   const { jobID, extraUserAnswers, extraTokenValues } =
-    getRetrieveSmartbuildJobMetaData(req.body);
+    getRetrieveSmartbuildJobMetaData(data);
   const jobInfoIds = [
     ...new Set([...DEFAULT_JOB_INFO_IDS, ...extraUserAnswers]),
   ];
@@ -92,14 +95,17 @@ export const retrieveSmartbuildJob = async (req, res) => {
 export const createOrEditSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
 
+  const data = req.body?.data || req.body;
+
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(req.body);
+  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(data);
   const smartbuildAuthentication = await getSmartbuildAuthentication(
-    req.body,
+    data,
     locationId
   );
-  const cleanedBody = removeProcessedKeys(req.body);
+  
+  const cleanedBody = removeProcessedKeys(data);
 
   const updatedOrCreatedJob = await createOrEditJob(
     smartbuildAuthentication.accessToken,
