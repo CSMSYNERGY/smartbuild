@@ -14,6 +14,7 @@ export class AppError extends Error {
     INVALID_TOKEN: 'INVALID_TOKEN',
     UNAUTHORIZED: 'UNAUTHORIZED',
     BAD_REQUEST: 'BAD_REQUEST',
+    LOCATION_NOT_SUBSCRIBED: 'LOCATION_NOT_SUBSCRIBED',
   };
   
   // Helper functions to create specific errors

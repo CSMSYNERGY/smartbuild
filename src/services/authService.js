@@ -2,6 +2,9 @@ import axios from "axios";
 import logger from "../config/logger.js";
 import { isTokenExpired } from "../utils/authUtils.js";
 import {
+  checkSubscription,
+  deleteLocationData,
+  deleteSmartbuildAuthData,
   getLocationData,
   getSmartbuildAuthData,
   saveLocationData,
@@ -98,7 +101,7 @@ export const getAccessTokenFromRefreshToken = async (refreshToken) => {
       }
     );
 
-    const { access_token, refresh_token, expires_in, scope, userId } =
+    const { access_token, refresh_token, expires_in, scope, userId, planId } =
       response.data;
 
     const expirationDate = new Date(Date.now() + expires_in * 1000);
@@ -109,6 +112,7 @@ export const getAccessTokenFromRefreshToken = async (refreshToken) => {
       refreshToken: refresh_token,
       expires: Timestamp.fromDate(expirationDate),
       scopes: scope,
+      planId: planId,
     };
   } catch (error) {
     logger.error("Error refreshing access token", error.response?.data);
@@ -137,10 +141,19 @@ export const getAuthenticatedLocation = async (locationId) => {
       );
 
       // Get new access token
-      const newAuthData = await getAccessTokenFromRefreshToken(
+      const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
         locationData.refreshToken
       );
-
+      const isSubscribed = await checkSubscription(planId, locationId);
+      if (!isSubscribed) {
+        await deleteSmartbuildAuthData(locationId);
+        await deleteLocationData(locationId);
+        throw new AppError(
+          `Location ${locationId} is not subscribed to any plan`,
+          403,
+          ErrorCodes.LOCATION_NOT_SUBSCRIBED
+        );
+      }
       // Save updated authentication data
       await saveLocationData(locationId, newAuthData);
 
