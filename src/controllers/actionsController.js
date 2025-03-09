@@ -34,24 +34,6 @@ export const updateOpportunityAction = async (req, res) => {
   return res.status(200).send();
 };
 
-export const getOpportunityAction = async (req, res, next) => {
-  const { opportunityId, locationId } = req.query;
-  if (!opportunityId || !locationId) {
-    throw new AppError(
-      "No opportunity id or location id provided",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
-
-  const authenticatedLocation = await getAuthenticatedLocation(locationId);
-  const opportunity = await getOpportunity(
-    authenticatedLocation.accessToken,
-    opportunityId
-  );
-  return res.status(200).json(opportunity);
-};
-
 export const getOpportunityCustomFields = async (req, res, next) => {
   const locationId = getLocationIdFromRequest(req);
 
@@ -68,6 +50,8 @@ export const getOpportunityCustomFields = async (req, res, next) => {
 export const getSmartbuildFields = async (req, res, next) => {
   const locationId = getLocationIdFromRequest(req);
 
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
   const authenticatedSmartbuild = await getAuthenticatedSmartbuild(locationId);
 
   const customFields = await retrieveSmartbuildCustomFields(
@@ -81,6 +65,9 @@ export const getSmartbuildFields = async (req, res, next) => {
 
 export const retrieveSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
+
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
   const smartbuildAuthentication = await getSmartbuildAuthentication(
     req.body,
     locationId
@@ -105,6 +92,9 @@ export const retrieveSmartbuildJob = async (req, res) => {
 
 export const createOrEditSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
+
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
   const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(req.body);
   const smartbuildAuthentication = await getSmartbuildAuthentication(
     req.body,
