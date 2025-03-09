@@ -9,7 +9,6 @@ import {
   retrieveSmartbuildCustomFields,
 } from "../services/smartbuildService.js";
 import {
-  getOpportunity,
   retrieveOpportunityCustomFields,
   updateOpportunity,
 } from "../services/ghlService.js";
