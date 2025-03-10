@@ -5,7 +5,6 @@ import {
   parsePayments,
   parseMeasurement,
   parsePrice,
-  parseDateToFormat,
 } from "../utils/smartbuildUtils.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { Timestamp } from "@google-cloud/firestore";
@@ -278,10 +277,6 @@ const getExistingJobData = async (token, jobId, jobInfoIds, jobTokenValues) => {
       acc[key] = answerValueMap[key] || ""; // Assign an empty string if the key is not present
       return acc;
     }, {});
-
-    answerResult["ForcastCloseDate"] = parseDateToFormat(
-      answerResult["ForcastCloseDate"]
-    );
 
     return { TokenResult: tokenResult, AnswerResult: answerResult };
   } catch (error) {

@@ -29,32 +29,6 @@ export const parsePrice = (priceString) => {
   }
 };
 
-export const parseDateToFormat = (dateString) => {
-  // match "m/d/yyyy"
-  const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-
-  const match = dateString.match(dateRegex);
-
-  if (match) {
-    const [, month, day, year] = match;
-    // Format as "mm-dd-yyyy"
-    return `${month.padStart(2, "0")}-${day.padStart(2, "0")}-${year}`;
-  }
-
-  // If the string doesn't match the pattern, return ""
-  /*
-    const currentDate = new Date();
-    const formattedCurrentDate = `${String(currentDate.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(currentDate.getDate()).padStart(
-      2,
-      "0"
-    )}-${currentDate.getFullYear()}`;
-    */
-  return "";
-};
-
 export const parseRevision = (inputString) => {
   // Regular expression to match "rev. X"
   const regex = /^(.*)\s+rev\.\s*(\d+)$/i;
