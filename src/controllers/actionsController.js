@@ -104,16 +104,16 @@ export const createOrEditSmartbuildJob = async (req, res) => {
     data,
     locationId
   );
-  
+
   const cleanedBody = removeProcessedKeys(data);
 
-  const updatedOrCreatedJob = await createOrEditJob(
+  const updatedOrCreatedJobId = await createOrEditJob(
     smartbuildAuthentication.accessToken,
     isCreate ? "0" : jobID,
     modelID,
     cleanedBody
   );
-  return res.status(200).json(updatedOrCreatedJob);
+  return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });
 };
 
 const getLocationIdFromRequest = (req) => {

@@ -177,7 +177,7 @@ async function createOrEditJobRequest(accessToken, jobId, modelAnswers) {
 
     if (postResponse.status !== 200) {
       throw new Error(
-        `Create job request failed for url ${url} with status ${postResponse.status}`
+        `Create or edit job request failed for url ${url} with status ${postResponse.status}`
       );
     }
 
