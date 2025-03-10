@@ -158,6 +158,8 @@ function setInputAnswers(modelAnswers, inputAnswers) {
   for (const [id, value] of Object.entries(inputAnswers)) {
     if (answerMap.has(id)) {
       answerMap.get(id).value = value;
+    } else {
+      modelAnswers.Answers.push({ id: id, value: value }); //pushing non existing answers
     }
   }
 
