@@ -67,3 +67,53 @@ export const parseRevision = (inputString) => {
 
   return [inputString, 0];
 };
+
+// Function to convert GHL's YYYY-MM-DD format to SmartBuild's M/D/YYYY format
+export const convertToSmartBuildDateFormat = (ghlDate) => {
+  // Check if it's already in SmartBuild format (M/D/YYYY)
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(ghlDate)) {
+    return ghlDate; // Return as is if it's already in SmartBuild format
+  }
+
+  // Validate if it's in GHL format (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ghlDate)) {
+    const [year, month, day] = ghlDate.split("-");
+    return `${parseInt(month)}/${parseInt(day)}/${year}`;
+  }
+
+  return ghlDate; // Return as is if it doesn't match expected formats
+};
+
+// Function to convert SmartBuild's M/D/YYYY format to GHL's YYYY-MM-DD format
+export const convertToGHLDateFormat = (smartBuildDate) => {
+  // Check if it's already in GHL format (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(smartBuildDate)) {
+    return smartBuildDate; // Return as is if it's already in GHL format
+  }
+
+  // Validate if it's in SmartBuild format (M/D/YYYY)
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(smartBuildDate)) {
+    const [month, day, year] = smartBuildDate.split("/");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return smartBuildDate; // Return as is if it doesn't match expected formats
+};
+
+export const convertDatesToSmartBuildFormat = (data) => {
+  for (const [key, value] of Object.entries(data)) {
+    if (key.toLowerCase().includes("date") && value) {
+      data[key] = convertToSmartBuildDateFormat(value);
+    }
+  }
+  return data;
+};
+
+export const convertDatesToGHLFormat = (data) => {
+  for (const [key, value] of Object.entries(data)) {
+    if (key.toLowerCase().includes("date") && value) {
+      data[key] = convertToGHLDateFormat(value);
+    }
+  }
+  return data;
+};

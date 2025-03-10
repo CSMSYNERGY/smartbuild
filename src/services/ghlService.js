@@ -147,10 +147,13 @@ export const retrieveOpportunityCustomFields = async (accessToken, locationId) =
           mappedField.fieldType = 'toggle';
           break;
         case 'CHECKBOX':
-          mappedField.fieldType = 'checkbox';
+          mappedField.fieldType = "checkbox";
+          break;
+        case "DATE":
+          mappedField.fieldType = "date";
           break;
         default:
-          mappedField.fieldType = 'string';
+          mappedField.fieldType = "string";
       }
 
       return mappedField;

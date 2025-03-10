@@ -18,6 +18,7 @@ import {
 } from "../services/authService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
+import { convertDatesToSmartBuildFormat } from "../utils/smartbuildUtils.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
@@ -106,12 +107,13 @@ export const createOrEditSmartbuildJob = async (req, res) => {
   );
 
   const cleanedBody = removeProcessedKeys(data);
+  const convertedBody = convertDatesToSmartBuildFormat(cleanedBody);
 
   const updatedOrCreatedJobId = await createOrEditJob(
     smartbuildAuthentication.accessToken,
     isCreate ? "0" : jobID,
     modelID,
-    cleanedBody
+    convertedBody
   );
   return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });
 };
@@ -182,14 +184,14 @@ const getRetrieveSmartbuildJobMetaData = (body) => {
   };
 };
 
-const removeProcessedKeys = (body) => {
-  const updatedBody = { ...body };
+const removeProcessedKeys = (data) => {
+  const updatedData = { ...data };
 
-  delete updatedBody.jobID;
-  delete updatedBody.modelID;
-  delete updatedBody.username;
-  delete updatedBody.password;
-  return updatedBody;
+  delete updatedData.jobID;
+  delete updatedData.modelID;
+  delete updatedData.username;
+  delete updatedData.password;
+  return updatedData;
 };
 
 const getSmartbuildAuthentication = async (body, locationId) => {
