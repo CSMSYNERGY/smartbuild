@@ -83,8 +83,10 @@ export const getOpportunity = async (accessToken, opportunityId) => {
   }
 };
 
-
-export const retrieveOpportunityCustomFields = async (accessToken, locationId) => {
+export const retrieveOpportunityCustomFields = async (
+  accessToken,
+  locationId
+) => {
   const url = `${process.env.GHL_BASE_URL}/locations/${locationId}/customFields?model=opportunity`;
 
   try {
@@ -97,70 +99,71 @@ export const retrieveOpportunityCustomFields = async (accessToken, locationId) =
     });
 
     // Map the response data to the required format
-    const mappedFields = response.data.customFields.map(field => {
+    const mappedFields = response.data.customFields.reduce((acc, field) => {
       const mappedField = {
         field: field.id,
         title: field.name,
-        required: false
+        required: false,
       };
 
       // Map the dataType to fieldType
-      switch(field.dataType) {
-        case 'TEXT':
-          mappedField.fieldType = 'string';
-          break;
-        case 'NUMERICAL':
-        case 'MONETORY':
-          mappedField.fieldType = 'numeric';
-          break;
-        case 'TEXTAREA':
-          mappedField.fieldType = 'textarea';
-          break;
-        case 'RADIO':
-          mappedField.fieldType = 'radio';
-          if (field.picklistOptions) {
-            mappedField.options = field.picklistOptions.map(option => ({
-              label: option,
-              value: option.toLowerCase()
-            }));
-          }
-          break;
-        case 'MULTI_SELECT':
-          mappedField.fieldType = 'multiselect';
-          if (field.picklistOptions) {
-            mappedField.options = field.picklistOptions.map(option => ({
-              label: option,
-              value: option.toLowerCase()
-            }));
-          }
-          break;
-        case 'SELECT':
-          mappedField.fieldType = 'select';
-          if (field.picklistOptions) {
-            mappedField.options = field.picklistOptions.map(option => ({
-              label: option,
-              value: option.toLowerCase()
-            }));
-          }
-          break;
-        case 'TOGGLE':
-          mappedField.fieldType = 'toggle';
-          break;
-        case 'CHECKBOX':
-          mappedField.fieldType = "checkbox";
-          break;
+      switch (field.dataType) {
+        case "TEXTAREA":
         case "DATE":
-          mappedField.fieldType = "date";
-          break;
-        default:
+        case "TEXT":
           mappedField.fieldType = "string";
+          acc.push(mappedField);
+          break;
+        case "NUMERICAL":
+        case "MONETORY":
+          mappedField.fieldType = "numeric";
+          acc.push(mappedField);
+          break;
+        case "RADIO":
+          mappedField.fieldType = "radio";
+          if (field.picklistOptions) {
+            mappedField.options = field.picklistOptions.map((option) => ({
+              label: option,
+              value: option.toLowerCase(),
+            }));
+          }
+          acc.push(mappedField);
+          break;
+        case "MULTI_SELECT":
+          mappedField.fieldType = "multiselect";
+          if (field.picklistOptions) {
+            mappedField.options = field.picklistOptions.map((option) => ({
+              label: option,
+              value: option.toLowerCase(),
+            }));
+          }
+          acc.push(mappedField);
+          break;
+        case "SELECT":
+          mappedField.fieldType = "select";
+          if (field.picklistOptions) {
+            mappedField.options = field.picklistOptions.map((option) => ({
+              label: option,
+              value: option.toLowerCase(),
+            }));
+          }
+          acc.push(mappedField);
+          break;
+        case "TOGGLE":
+          mappedField.fieldType = "toggle";
+          acc.push(mappedField);
+          break;
+        case "CHECKBOX":
+          mappedField.fieldType = "checkbox";
+          acc.push(mappedField);
+          break;
+        // No default case - fields with unknown types will be skipped
       }
 
-      return mappedField;
-    });
+      return acc;
+    }, []);
 
     return mappedFields;
-
   } catch (error) {
     throw new AppError(
       `Get opportunity custom fields failed: ${error.message}`,
