@@ -18,7 +18,10 @@ import {
 } from "../services/authService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
-import { convertDatesToSmartBuildFormat } from "../utils/smartbuildUtils.js";
+import {
+  convertDatesToGHLFormat,
+  convertDatesToSmartBuildFormat,
+} from "../utils/smartbuildUtils.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
@@ -90,7 +93,9 @@ export const retrieveSmartbuildJob = async (req, res) => {
     jobInfoIds,
     jobTokenValues
   );
-  return res.status(200).json(jobData);
+  const convertedJobData = convertDatesToGHLFormat(jobData);
+  convertedJobData["CurrentDate"] = new Date().toISOString().split("T")[0];
+  return res.status(200).json(convertedJobData);
 };
 
 export const createOrEditSmartbuildJob = async (req, res) => {
