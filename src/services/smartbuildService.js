@@ -72,7 +72,7 @@ export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
     };
   } catch (error) {
     throw new AppError(
-      `Error getting access token from smartbuild: ${error.message}`,
+      `Error getting refresh token from smartbuild: ${error.message}`,
       401,
       ErrorCodes.UNAUTHORIZED
     );

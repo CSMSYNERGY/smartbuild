@@ -25,7 +25,7 @@ import {
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
-  const data = req.body?.data || req.body;
+  const data = sanitizeInput(req.body?.data || req.body);
   const { opportunityID, opportunityData } = retrieveOpportunityData(data);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
@@ -70,7 +70,7 @@ export const getSmartbuildFields = async (req, res, next) => {
 export const retrieveSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
 
-  const data = req.body?.data || req.body;
+  const data = sanitizeInput(req.body?.data || req.body);
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
@@ -101,7 +101,7 @@ export const retrieveSmartbuildJob = async (req, res) => {
 export const createOrEditSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
 
-  const data = req.body?.data || req.body;
+  const data = sanitizeInput(req.body?.data || req.body);
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
@@ -202,9 +202,34 @@ const removeProcessedKeys = (data) => {
 const getSmartbuildAuthentication = async (body, locationId) => {
   const { username, password } = body;
 
-  if (username && username.trim() !== "") {
+  if (username) {
     return await getSmartbuildToken(username, password);
   }
 
   return await getAuthenticatedSmartbuild(locationId);
+};
+
+
+const sanitizeInput = (obj) => {
+  const cleaned = {};
+  for (const key in obj) {
+    const value = obj[key];
+    if (isValidValue(value)) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+};
+
+const isValidValue = (value) => {
+  if (value === null || value === undefined) return false;
+
+  if (typeof value === "object") return true; // keep nested objects/arrays
+
+  if (typeof value === "string") {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed !== "" && trimmed !== "nan";
+  }
+
+  return true; // optionally allow numbers, booleans, etc.
 };
