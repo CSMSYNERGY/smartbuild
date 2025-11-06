@@ -34,8 +34,16 @@ export async function getUserData() {
       credentials: "include",
     });
 
-    const userData = await response.json();
-    return userData;
+    const data = await response.json();
+    
+    // Check if response contains an error
+    if (!response.ok || data.error) {
+      const error = new Error(data.error || "Failed to authenticate");
+      error.response = data; // Attach full response for error handling
+      throw error;
+    }
+    
+    return data;
   } catch (error) {
     console.error("Failed to fetch user data:", error);
     throw error;
