@@ -1,6 +1,5 @@
 //express index.js
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import routes from "./routes/index.js";
 import logger from "./config/logger.js";

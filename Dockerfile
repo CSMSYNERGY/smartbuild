@@ -4,7 +4,7 @@ WORKDIR /app
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm ci
 COPY frontend ./frontend
-RUN cd frontend && npm run build:ui
+RUN cd frontend && npm run build
 
 # ---------- runtime for API ----------
 FROM node:20.19-slim

@@ -1,12 +1,21 @@
 export async function getUserData() {
   try {
-    const encryptedUserData = await new Promise((resolve) => {
+    const encryptedUserData = await new Promise((resolve, reject) => {
+      const TIMEOUT_MS = 5000; // 5 seconds timeout
+      
       // Request user data from parent window
       window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*");
+
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        window.removeEventListener("message", messageHandler);
+        reject(new Error("Timeout: Parent window did not respond"));
+      }, TIMEOUT_MS);
 
       // Listen for the response
       const messageHandler = ({ data }) => {
         if (data.message === "REQUEST_USER_DATA_RESPONSE") {
+          clearTimeout(timeoutId);
           window.removeEventListener("message", messageHandler);
           resolve(data.payload);
         }

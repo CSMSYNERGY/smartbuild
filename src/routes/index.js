@@ -7,6 +7,8 @@ import { actionLogger } from "../middlewares/loggerMiddleware.js";
 import webAuthRoutes from "./webAuthRoutes.js";
 import webApiRoutes from "./webApiRoutes.js";
 import { requireWebSession } from "../middlewares/webAuthMiddleware.js";
+import cors from "cors";
+
 
 const router = express.Router();
 router.get("/", (_, res) => res.send("GHLSmartBuildApp is running..."));
