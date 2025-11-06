@@ -58,7 +58,7 @@ export const decryptAndSetSessionCookie = (req, res) => {
 
     const isValid = Object.keys(claims).every((key) => claims[key] != null);
     if (!isValid) {
-      return res.status(400).json({ error: "Missing required claims" });
+      return res.status(400).json({ error: "Missing required claims", claims: {...claims} });
     }
 
     setSessionCookie(res, claims);
