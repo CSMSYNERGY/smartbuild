@@ -21,7 +21,7 @@ export const setSessionCookie = (res, claims) => {
       .json({ error: "Server misconfiguration: missing APP_JWT_SECRET" });
   }
 
-  const token = jwt.sign(claims, APP_JWT_SECRET, {
+  const token = jwt.sign(claims, secret, {
     algorithm: "HS256",
     expiresIn: "60m",
   });
@@ -45,6 +45,9 @@ export const decryptAndSetSessionCookie = (req, res) => {
     const user = decryptUserData(encryptedData);
     // user: { userId, companyId, activeLocation, email, role, ... }
 
+    if(!user.activeLocation) {
+      return res.status(400).json({ error: "No sub-account identity found. Use Sub-Account view in order to proceed.", claims: {...claims}, user: {...user} });
+    }
     // decide entitlements here later (free/pro)
     const claims = {
       sub: user.userId,
@@ -58,7 +61,7 @@ export const decryptAndSetSessionCookie = (req, res) => {
 
     const isValid = Object.keys(claims).every((key) => claims[key] != null);
     if (!isValid) {
-      return res.status(400).json({ error: "Missing required claims", claims: {...claims} });
+      return res.status(400).json({ error: "Invalid authenticity. Please contact support.", claims: {...claims}, user: {...user} });
     }
 
     setSessionCookie(res, claims);
