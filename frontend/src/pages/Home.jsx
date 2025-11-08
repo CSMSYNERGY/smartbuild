@@ -1,28 +1,50 @@
-import { useState, useEffect } from "react";
+import { Code, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { useAuth } from "../context/AuthProvider";
 
 export default function Home() {
   const { user } = useAuth();
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>User Information</h2>
+    <Stack gap="lg">
+      <Stack gap={4}>
+        <Title order={2}>Connected account</Title>
+        <Text c="dimmed">
+          Review the authenticated SmartBuild user pulled from GoHighLevel.
+        </Text>
+      </Stack>
+
       {user ? (
-        <div style={{ marginTop: "16px" }}>
-          <pre
-            style={{
-              backgroundColor: "#f5f5f5",
-              padding: "16px",
-              borderRadius: "8px",
-              overflow: "auto",
-            }}
-          >
-            {JSON.stringify(user, null, 2)}
-          </pre>
-        </div>
+        <Paper withBorder shadow="sm" radius="lg" p="lg">
+          <Stack gap="sm">
+            <Group justify="space-between" align="flex-start">
+              <div>
+                <Text fw={600}>Session payload</Text>
+                <Text size="sm" c="dimmed">
+                  These values are stored in your secure session cookie.
+                </Text>
+              </div>
+            </Group>
+            <Code
+              block
+              fz="sm"
+              style={{
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+              }}
+            >
+              {JSON.stringify(user, null, 2)}
+            </Code>
+          </Stack>
+        </Paper>
       ) : (
-        <p>No user information available</p>
+        <Paper withBorder radius="lg" p="lg" shadow="xs">
+          <Text c="dimmed">
+            No authenticated user detected. Use the SmartBuild embed to connect
+            your account.
+          </Text>
+        </Paper>
       )}
-    </div>
+    </Stack>
   );
 }
