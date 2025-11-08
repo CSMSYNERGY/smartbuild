@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import {
+  ActionIcon,
   AppShell,
   Anchor,
   Container,
@@ -16,6 +17,7 @@ import {
   createTheme,
   rem,
 } from "@mantine/core";
+import { IconExternalLink } from "@tabler/icons-react";
 import Home from "./pages/Home.jsx";
 import { AuthProvider } from "./context/AuthProvider.jsx";
 
@@ -28,6 +30,8 @@ const theme = createTheme({
 function HeaderNav() {
   const location = useLocation();
   const links = [{ to: "/home", label: "Home" }];
+  const isEmbedded =
+    typeof window !== "undefined" && window.self !== window.top;
 
   return (
     <Group
@@ -39,7 +43,7 @@ function HeaderNav() {
       <Title order={4} fw={700}>
         SmartBuild Integrations
       </Title>
-      <Group gap="md">
+      <Group gap="sm" align="center">
         {links.map((link) => {
           const isActive = location.pathname === link.to;
           return (
@@ -56,6 +60,19 @@ function HeaderNav() {
             </Anchor>
           );
         })}
+        {isEmbedded && (
+          <ActionIcon
+            variant="subtle"
+            color="indigo"
+            aria-label="Open in new tab"
+            onClick={() => {
+              const appUrl = `${window.location.origin}/app/home`;
+              window.open(appUrl, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <IconExternalLink stroke={1.8} size="1.25rem" />
+          </ActionIcon>
+        )}
       </Group>
     </Group>
   );
