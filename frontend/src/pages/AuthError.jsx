@@ -1,26 +1,35 @@
-import React from "react";
+import {
+  Alert,
+  Button,
+  Center,
+  Container,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 
 export default function AuthError({ error, onRetry }) {
   return (
-    <div style={{ padding: "2rem", textAlign: "center" }}>
-      <h1>Authentication Error</h1>
-      <p style={{ marginBottom: "1.5rem" }}>{error}</p>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "#646cff",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-          }}
-        >
-          Retry
-        </button>
-      )}
-    </div>
+    <Center mih="70vh">
+      <Container size={460}>
+        <Stack gap="lg" align="center">
+          <Title order={2}>Authentication error</Title>
+          <Alert
+            variant="light"
+            color="red"
+            radius="md"
+            title="We couldn't verify your session"
+            w="100%"
+          >
+            <Text size="sm">{error}</Text>
+          </Alert>
+          {onRetry && (
+            <Button onClick={onRetry} size="md">
+              Retry
+            </Button>
+          )}
+        </Stack>
+      </Container>
+    </Center>
   );
 }
