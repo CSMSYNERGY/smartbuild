@@ -37,7 +37,7 @@ function HeaderNav() {
       style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
     >
       <Title order={4} fw={700}>
-        SmartBuild Console
+        SmartBuild Integrations
       </Title>
       <Group gap="md">
         {links.map((link) => {
@@ -74,19 +74,19 @@ function App() {
             },
           }}
         >
-          <AppShell.Header>
-            <HeaderNav />
-          </AppShell.Header>
-          <AppShell.Main>
-            <AuthProvider>
+          <AuthProvider>
+            <AppShell.Header>
+              <HeaderNav />
+            </AppShell.Header>
+            <AppShell.Main>
               <Container size="lg" py="lg">
                 <Routes>
                   <Route path="/home" element={<Home />} />
                   <Route path="*" element={<Navigate to="/home" replace />} />
                 </Routes>
               </Container>
-            </AuthProvider>
-          </AppShell.Main>
+            </AppShell.Main>
+          </AuthProvider>
         </AppShell>
       </MantineProvider>
     </BrowserRouter>

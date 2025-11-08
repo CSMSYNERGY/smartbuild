@@ -6,7 +6,6 @@ export default function LoadingScreen() {
       <Paper withBorder shadow="md" radius="lg" p="xl">
         <Stack align="center" gap="sm">
           <Loader color="indigo" size="lg" />
-          <Text fw={600}>Connecting SmartBuild…</Text>
           <Text size="sm" c="dimmed" ta="center" maw={260}>
             Please wait while we verify your GoHighLevel session.
           </Text>
