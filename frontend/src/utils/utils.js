@@ -2,7 +2,7 @@ export async function getUserData() {
   try {
     const encryptedUserData = await new Promise((resolve, reject) => {
       const TIMEOUT_MS = 5000; // 5 seconds timeout
-      
+
       // Request user data from parent window
       window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*");
 
@@ -35,17 +35,26 @@ export async function getUserData() {
     });
 
     const data = await response.json();
-    
+
     // Check if response contains an error
     if (!response.ok || data.error) {
       const error = new Error(data.error || "Failed to authenticate");
       error.response = data; // Attach full response for error handling
       throw error;
     }
-    
+
     return data;
   } catch (error) {
     console.error("Failed to fetch user data:", error);
     throw error;
   }
+}
+
+export async function fetchMe() {
+  const res = await fetch("/api/me", {
+    method: "GET",
+    credentials: "include",
+  });
+  console.log("fetchMe response", res);
+  return res.ok ? res.json() : null;
 }
