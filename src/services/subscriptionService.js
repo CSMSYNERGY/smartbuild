@@ -1,0 +1,677 @@
+// subscriptionService.js
+import {
+  getEntitlement,
+  getSubscription,
+  saveEntitlement,
+  saveSubscription,
+  deleteEntitlement,
+  deleteSubscription,
+} from "./firestoreService.js";
+import { PlansConfig } from "../config/plansConfig.js";
+import { ErrorCodes } from "../models/errors.js";
+import {
+  parseGatewayResponse,
+  computeSubscriptionEndDate,
+  isPlanValid,
+} from "../utils/paymentUtils.js";
+import logger from "../config/logger.js";
+import axios from "axios";
+import { AppError } from "../models/errors.js";
+
+export const getEntitlementDetails = async (webUser) => {
+  try {
+    const base = await getEntitlementDetailsForLocation(webUser.locationId);
+
+    const subscriptionByThisUser =
+      base.entitlementUserId && base.entitlementUserId === webUser.id;
+
+    let paymentDetails = null;
+
+    // Only fetch and expose payment details if this user owns the subscription
+    // and there is a subscriptionId we can look up.
+    if (subscriptionByThisUser && base.subscriptionId) {
+      try {
+        const sub = await getSubscription(base.subscriptionId);
+        if (sub && sub.paymentDetails) {
+          paymentDetails = sub.paymentDetails;
+        }
+      } catch (err) {
+        logger.warn(
+          `Failed to load subscription/payment details for ${base.subscriptionId}`,
+          err
+        );
+      }
+    }
+
+    return {
+      status: base.status,
+      subscriptionByThisUser,
+      planId: base.planId,
+      activeUntil: base.activeUntil ?? null,
+      paymentDetails, // ⬅️ NEW
+    };
+  } catch (error) {
+    logger.error("Error getting subscription entitlement", error);
+    throw new Error("Error getting subscription entitlement");
+  }
+};
+
+export const getEntitlementDetailsForLocation = async (locationId) => {
+  try {
+    const entitlement = await getEntitlement(locationId);
+
+    // No entitlement at all → inactive
+    if (!entitlement) {
+      return {
+        status: "inactive",
+        planId: undefined,
+        activeUntil: null,
+        entitlementUserId: null,
+        subscriptionId: null,
+      };
+    }
+
+    const entitlementUserId = entitlement.userId || null;
+    const planId = entitlement.planId;
+    const status = entitlement.status || "inactive";
+
+    // Normalize subscriptionEndDate to ms timestamp
+    const rawEnd = entitlement.subscriptionEndDate;
+    let subscriptionEndMs = null;
+    if (typeof rawEnd === "number") {
+      subscriptionEndMs = rawEnd;
+    } else if (rawEnd && typeof rawEnd.toMillis === "function") {
+      // Firestore Timestamp
+      subscriptionEndMs = rawEnd.toMillis();
+    } else if (rawEnd instanceof Date) {
+      subscriptionEndMs = rawEnd.getTime();
+    }
+
+    const now = Date.now();
+
+    // 1) Active → just return active
+    if (status === "active") {
+      return {
+        status: "active",
+        planId,
+        activeUntil: subscriptionEndMs ?? null,
+        entitlementUserId,
+        subscriptionId: entitlement.subscriptionId,
+      };
+    }
+
+    // 2) Pending-cancel → we know user requested cancel,
+    // but we may not yet have the final end date from webhook.
+    if (status === "pending-cancel") {
+      return {
+        status: "pending-cancel",
+        planId,
+        activeUntil: subscriptionEndMs ?? null,
+        entitlementUserId,
+        subscriptionId: null,
+      };
+    }
+
+    // 3) Cancelled → check if period is still running
+    if (status === "cancelled") {
+      if (subscriptionEndMs && subscriptionEndMs > now) {
+        // Cancelled but still in paid period
+        return {
+          status: "cancelled",
+          planId,
+          activeUntil: subscriptionEndMs,
+          entitlementUserId,
+          subscriptionId: null,
+        };
+      }
+
+      if (subscriptionEndMs && subscriptionEndMs <= now) {
+        // Cancelled and end date passed → hard-expire entitlement
+        await deleteEntitlement(locationId);
+
+        return {
+          status: "inactive",
+          planId: undefined,
+          activeUntil: null,
+          entitlementUserId: null,
+          subscriptionId: null,
+        };
+      }
+
+      // Cancelled but we don't know end date (defensive fallback)
+      return {
+        status: "cancelled",
+        planId,
+        activeUntil: null,
+        entitlementUserId,
+        subscriptionId: null,
+      };
+    }
+
+    // 4) Any other status (expired, etc.) → treat as inactive
+    return {
+      status: "inactive",
+      planId: undefined,
+      activeUntil: null,
+      entitlementUserId,
+      subscriptionId: null,
+    };
+  } catch (error) {
+    logger.error(
+      `Error getting subscription entitlement for location ${locationId}`,
+      error
+    );
+    throw new Error("Error getting subscription entitlement for location");
+  }
+};
+
+export const cancelSubscription = async (user) => {
+  const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
+
+  if (!DEPOSYT_PRIVATE_API_KEY) {
+    throw new AppError(
+      "DEPOSYT_PRIVATE_API_KEY is not set",
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+  if (!user || !user.id || !user.locationId) {
+    throw new AppError(
+      "User or location missing from session",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Get subscription for this location (or for this user if you prefer)
+  const entitlement = await getEntitlement(user.locationId);
+
+  if (!entitlement || entitlement.status !== "active") {
+    throw new AppError(
+      "No active subscription found",
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+
+  const { subscriptionId } = entitlement;
+
+  if (!subscriptionId) {
+    throw new AppError(
+      "Subscription ID missing for this location",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Build recurring "delete_subscription" request
+  const payload = new URLSearchParams();
+  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
+  payload.append("recurring", "delete_subscription");
+  payload.append("subscription_id", subscriptionId);
+
+  const gatewayResponse = await axios.post(
+    PlansConfig.DEPOSYT_API_URL, // same transact.php endpoint
+    payload.toString(),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+  );
+
+  const parsed = parseGatewayResponse(gatewayResponse.data);
+
+  if (parsed.response !== "1") {
+    throw new AppError(
+      parsed.responsetext || "Gateway did not approve subscription cancel.",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  const now = Date.now();
+
+  await saveEntitlement(user.locationId, {
+    status: "pending-cancel",
+    updatedAt: now,
+  });
+
+  await saveSubscription(subscriptionId, {
+    status: "pending-cancel",
+    updatedAt: now,
+  });
+
+  return { ok: true, status: "pending-cancel" };
+};
+
+export const updateCard = async (user, paymentToken) => {
+  const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
+  if (!DEPOSYT_PRIVATE_API_KEY) {
+    throw new AppError(
+      "DEPOSYT_PRIVATE_API_KEY is not set",
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+
+  if (!user || !user.id || !user.locationId) {
+    throw new AppError(
+      "User or location is missing from session",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Get subscription to read customerVaultId
+  const entitlement = await getEntitlement(user.locationId);
+
+  if (
+    !entitlement ||
+    entitlement.status !== "active" ||
+    entitlement.userId !== user.id
+  ) {
+    throw new AppError("No subscription found", 404, ErrorCodes.NOT_FOUND);
+  }
+
+  const subscriptionId = entitlement.subscriptionId;
+
+  const subscription = await getSubscription(subscriptionId);
+
+  if (!subscription) {
+    throw new AppError(
+      "Subscription record not found",
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+
+  const { customerVaultId } = subscription;
+
+  if (!customerVaultId) {
+    throw new AppError(
+      "Customer Vault ID missing for this subscription",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Use "update_customer" against the vault with the new payment_token
+  const payload = new URLSearchParams();
+  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
+  payload.append("customer_vault", "update_customer");
+  payload.append("customer_vault_id", customerVaultId);
+  payload.append("payment_token", paymentToken);
+
+  const gatewayResponse = await axios.post(
+    PlansConfig.DEPOSYT_API_URL,
+    payload.toString(),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
+
+  const parsed = parseGatewayResponse(gatewayResponse.data);
+  if (parsed.response !== "1") {
+    const msg =
+      parsed.responsetext || "Gateway did not approve payment method update.";
+    throw new AppError(msg, 400, ErrorCodes.BAD_REQUEST);
+  }
+
+  return { ok: true };
+};
+
+export const getSavedPlans = () => {
+  return PlansConfig.PLANS;
+};
+
+export const createSubscription = async (user, paymentToken, planId) => {
+  const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
+  if (!DEPOSYT_PRIVATE_API_KEY) {
+    throw new AppError(
+      "DEPOSYT_PRIVATE_API_KEY is not set",
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+
+  if (!user || !user.id || !user.locationId) {
+    throw new AppError(
+      "User or location is missing from session",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Validate / resolve plan
+  const plan = PlansConfig.PLANS.find((p) => p.id === planId);
+  if (!plan) {
+    throw new AppError("Invalid plan id", 400, ErrorCodes.BAD_REQUEST);
+  }
+
+  // Amount per cycle (in your currency)
+  const amount = Number(plan.amount);
+  if (!Number.isFinite(amount)) {
+    throw new AppError(
+      "Configured plan amount is invalid",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Build Payment API payload:
+  // - type=sale     -> charge now
+  // - amount        -> first charge
+  // - payment_token -> from Collect.js
+  // - recurring=add_subscription + plan_id -> create subscription for next cycles
+  const payload = new URLSearchParams();
+  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
+  payload.append("type", "sale");
+  payload.append("amount", amount.toFixed(2));
+  payload.append("currency", plan.currency);
+  payload.append("payment_token", paymentToken);
+
+  // mark as recurring + attach to plan
+  payload.append("billing_method", "recurring");
+  payload.append("recurring", "add_subscription");
+  payload.append("plan_id", String(plan.id));
+
+  // optional but nice to have
+  payload.append("customer_receipt", "true");
+  payload.append("orderid", `sub-${user.locationId}-${planId}-${Date.now()}`);
+  if (user.email) {
+    payload.append("email", user.email);
+  }
+
+  const gatewayResponse = await axios.post(
+    PlansConfig.DEPOSYT_API_URL,
+    payload.toString(),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
+
+  const parsed = parseGatewayResponse(gatewayResponse.data);
+
+  // Deposyt standard fields (see "Transaction Response Variables"):
+  // response: 1 = approved, 2 = declined, 3 = error
+  if (parsed.response !== "1") {
+    throw new AppError(
+      parsed.responsetext || "Payment was not approved by the gateway."
+    );
+  }
+
+  const subscriptionId = parsed.subscription_id;
+  const customerVaultId = parsed.customer_vault_id;
+  const orderId = parsed.orderid;
+
+  if (!subscriptionId || !customerVaultId) {
+    throw new AppError(
+      "Subscription ID or customer vault ID is missing",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  const now = Date.now();
+  const status = "active";
+
+  // 1) Entitlement doc keyed by locationId
+  await saveEntitlement(user.locationId, {
+    id: user.locationId,
+    status,
+    subscriptionId,
+    userId: user.id,
+    planId,
+    updatedAt: now,
+    createdAt: now,
+  });
+
+  // 2) Subscription collection keyed by subscriptionId
+  await saveSubscription(subscriptionId, {
+    id: subscriptionId,
+    planId,
+    status,
+    customerVaultId,
+    entitlementId: user.locationId,
+    orderId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return {
+    ok: true,
+    subscriptionId,
+    status,
+    customerVaultId,
+    orderId,
+  };
+};
+
+/**
+ * Top-level dispatcher called from your controller.
+ * @param {string} eventType  e.g. "recurring.subscription.add"
+ * @param {object} eventBody  the JSON from Deposyt's event_body
+ */
+export const handleSubscriptionEvent = async (eventType, eventBody) => {
+  // Sanity check
+  if (!eventBody || typeof eventBody !== "object") {
+    logger.warn("handleSubscriptionEvent called with empty eventBody");
+    return;
+  }
+
+  // Make sure this is one of *your* plans (you already implemented this)
+  if (!isPlanValid(eventBody)) {
+    logger.info(
+      `Ignoring Deposyt webhook for non-app plan: ${eventBody?.plan?.id}`
+    );
+    return;
+  }
+
+  switch (eventType) {
+    case "recurring.subscription.delete":
+      await handleSubscriptionDeleted(eventBody);
+      break;
+    case "recurring.subscription.update":
+      await handleSubscriptionUpdated(eventBody);
+      break;
+    case "recurring.subscription.add":
+      await handleSubscriptionAdded(eventBody);
+      break;
+    default:
+      logger.warn(
+        `Unknown event type received from Deposyt: ${eventType}`,
+        eventBody
+      );
+      return;
+  }
+};
+
+const handleSubscriptionAdded = async (eventBody) => {
+  const subscriptionId = eventBody.subscription_id;
+  if (!subscriptionId) {
+    logger.warn("subscription.add event missing subscription_id", eventBody);
+    return;
+  }
+
+  const planIdFromGateway = eventBody.plan?.id || null;
+  const now = Date.now();
+
+  const existingSub = await getSubscription(subscriptionId);
+  if (!existingSub) {
+    logger.warn(
+      `Webhook add for unknown subscription_id=${subscriptionId}, saving stub subscription`
+    );
+  }
+
+  const entitlementId = existingSub?.entitlementId; // locationId from createSubscription
+  const planId = planIdFromGateway || existingSub?.planId;
+
+  const subscriptionEndDate = computeSubscriptionEndDate(
+    eventBody,
+    existingSub
+  );
+
+  //  derive payment details from webhook payload (masked only)
+  const card = eventBody.card || {};
+  const billing = eventBody.billing_address || {};
+
+  const paymentDetails = {
+    maskedNumber: typeof card.cc_number === "string" ? card.cc_number : null,
+    exp: card.cc_exp || null, // e.g. "1026"
+    billingName:
+      [billing.first_name, billing.last_name].filter(Boolean).join(" ") || null,
+    billingEmail: billing.email || null,
+  };
+
+  // Mark subscription as active and sync end date
+  await saveSubscription(subscriptionId, {
+    id: subscriptionId,
+    planId,
+    status: "active",
+    nextChargeDate: subscriptionEndDate,
+    subscriptionEndDate,
+    paymentDetails,
+    gatewayPlanName: eventBody.plan?.name,
+    gatewayPlanAmount: eventBody.plan?.amount,
+    createdAt: existingSub?.createdAt ?? now,
+    updatedAt: now,
+  });
+
+  if (!entitlementId) {
+    logger.warn(
+      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on add.`
+    );
+    return;
+  }
+
+  // Entitlement: active, and now has subscriptionEndDate = next_charge_date
+  await saveEntitlement(entitlementId, {
+    id: entitlementId,
+    status: "active",
+    subscriptionId,
+    planId,
+    subscriptionEndDate,
+    updatedAt: now,
+  });
+};
+
+const handleSubscriptionUpdated = async (eventBody) => {
+  const subscriptionId = eventBody.subscription_id;
+  if (!subscriptionId) {
+    logger.warn("subscription.update event missing subscription_id", eventBody);
+    return;
+  }
+
+  const planIdFromGateway = eventBody.plan?.id || null;
+  const now = Date.now();
+
+  const existingSub = await getSubscription(subscriptionId);
+  if (!existingSub) {
+    logger.warn(
+      `Webhook update for unknown subscription_id=${subscriptionId}, saving stub subscription`
+    );
+  }
+
+  const entitlementId = existingSub?.entitlementId;
+  const planId = planIdFromGateway || existingSub?.planId;
+
+  const subscriptionEndDate = computeSubscriptionEndDate(
+    eventBody,
+    existingSub
+  );
+
+  // If already cancelled in our DB, don't revive it here.
+  const status =
+    existingSub?.status && existingSub.status === "cancelled"
+      ? "cancelled"
+      : "active";
+
+  //  derive payment details from webhook payload (masked only)
+  const card = eventBody.card || {};
+  const billing = eventBody.billing_address || {};
+
+  const paymentDetails = {
+    maskedNumber: typeof card.cc_number === "string" ? card.cc_number : null,
+    exp: card.cc_exp || null, // e.g. "1026"
+    billingName:
+      [billing.first_name, billing.last_name].filter(Boolean).join(" ") || null,
+    billingEmail: billing.email || null,
+  };
+
+  await saveSubscription(subscriptionId, {
+    id: subscriptionId,
+    planId,
+    status,
+    nextChargeDate: subscriptionEndDate,
+    subscriptionEndDate,
+    gatewayPlanName: eventBody.plan?.name,
+    gatewayPlanAmount: eventBody.plan?.amount,
+    paymentDetails,
+    createdAt: existingSub?.createdAt ?? now,
+    updatedAt: now,
+  });
+
+  if (!entitlementId) {
+    logger.warn(
+      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on update.`
+    );
+    return;
+  }
+
+  // Entitlement status mirrors subscription, but we still bump subscriptionEndDate
+  await saveEntitlement(entitlementId, {
+    id: entitlementId,
+    status,
+    subscriptionId,
+    planId,
+    subscriptionEndDate,
+    updatedAt: now,
+  });
+};
+
+const handleSubscriptionDeleted = async (eventBody) => {
+  const subscriptionId = eventBody.subscription_id;
+  if (!subscriptionId) {
+    logger.warn("subscription.delete event missing subscription_id", eventBody);
+    return;
+  }
+
+  const now = Date.now();
+
+  const existingSub = await getSubscription(subscriptionId);
+  if (!existingSub) {
+    logger.warn(
+      `Webhook delete for unknown subscription_id=${subscriptionId}, proceeding with entitlement cleanup if possible`,
+      eventBody
+    );
+  }
+
+  const entitlementId = existingSub?.entitlementId;
+
+  // If Deposyt sends next_charge_date here, we treat it as the period end.
+  // Otherwise we fall back to whatever we already had.
+  const subscriptionEndDate = computeSubscriptionEndDate(
+    eventBody,
+    existingSub
+  );
+
+  // Hard-delete subscription document; we don't need it anymore.
+  await deleteSubscription(subscriptionId);
+
+  if (!entitlementId) {
+    logger.warn(
+      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on delete.`
+    );
+    return;
+  }
+
+  // Entitlement: cancelled, but still valid until subscriptionEndDate.
+  await saveEntitlement(entitlementId, {
+    id: entitlementId,
+    status: "cancelled",
+    subscriptionId, // keep link for UI/debug even though sub doc is gone
+    subscriptionEndDate,
+    updatedAt: now,
+  });
+};
