@@ -2,7 +2,6 @@ import axios from "axios";
 import logger from "../config/logger.js";
 import { isTokenExpired } from "../utils/authUtils.js";
 import {
-  checkSubscription,
   deleteLocationData,
   deleteSmartbuildAuthData,
   getLocationData,
@@ -16,6 +15,7 @@ import {
   getSmartbuildToken,
   getSmartbuildTokenFromRefreshToken,
 } from "./smartbuildService.js";
+import { getEntitlementDetailsForLocation } from "./subscriptionService.js";
 
 export const authenticateAndSaveUser = async (code) => {
   try {
@@ -144,14 +144,12 @@ export const getAuthenticatedLocation = async (locationId) => {
       const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
         locationData.refreshToken
       );
-      const isSubscribed = await checkSubscription(planId, locationId);
-      if (!isSubscribed) {
-        await deleteSmartbuildAuthData(locationId);
-        await deleteLocationData(locationId);
+      const entitlement = await getEntitlementDetailsForLocation(locationId);
+      if (entitlement.status !== "active") {
         throw new AppError(
           `Location ${locationId} is not subscribed to any plan`,
-          403,
-          ErrorCodes.LOCATION_NOT_SUBSCRIBED
+          401,
+          ErrorCodes.UNAUTHORIZED
         );
       }
       // Save updated authentication data
