@@ -5,7 +5,6 @@ import {
   parsePayments,
   parseMeasurement,
   parsePrice,
-  parseDateToFormat,
 } from "../utils/smartbuildUtils.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { Timestamp } from "@google-cloud/firestore";
@@ -73,7 +72,7 @@ export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
     };
   } catch (error) {
     throw new AppError(
-      `Error getting access token from smartbuild: ${error.message}`,
+      `Error getting refresh token from smartbuild: ${error.message}`,
       401,
       ErrorCodes.UNAUTHORIZED
     );
@@ -158,6 +157,8 @@ function setInputAnswers(modelAnswers, inputAnswers) {
   for (const [id, value] of Object.entries(inputAnswers)) {
     if (answerMap.has(id)) {
       answerMap.get(id).value = value;
+    } else {
+      modelAnswers.Answers.push({ id: id, value: value }); //pushing non existing answers
     }
   }
 
@@ -177,7 +178,7 @@ async function createOrEditJobRequest(accessToken, jobId, modelAnswers) {
 
     if (postResponse.status !== 200) {
       throw new Error(
-        `Create job request failed for url ${url} with status ${postResponse.status}`
+        `Create or edit job request failed for url ${url} with status ${postResponse.status}`
       );
     }
 
@@ -276,10 +277,6 @@ const getExistingJobData = async (token, jobId, jobInfoIds, jobTokenValues) => {
       acc[key] = answerValueMap[key] || ""; // Assign an empty string if the key is not present
       return acc;
     }, {});
-
-    answerResult["ForcastCloseDate"] = parseDateToFormat(
-      answerResult["ForcastCloseDate"]
-    );
 
     return { TokenResult: tokenResult, AnswerResult: answerResult };
   } catch (error) {

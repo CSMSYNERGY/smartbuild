@@ -16,6 +16,7 @@ export class AppError extends Error {
     UNAUTHORIZED: 'UNAUTHORIZED',
     BAD_REQUEST: 'BAD_REQUEST',
     INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
+    LOCATION_NOT_SUBSCRIBED: 'LOCATION_NOT_SUBSCRIBED',
   };
   
   // Helper functions to create specific errors

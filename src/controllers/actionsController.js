@@ -9,7 +9,6 @@ import {
   retrieveSmartbuildCustomFields,
 } from "../services/smartbuildService.js";
 import {
-  getOpportunity,
   retrieveOpportunityCustomFields,
   updateOpportunity,
 } from "../services/ghlService.js";
@@ -19,10 +18,15 @@ import {
 } from "../services/authService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
+import {
+  convertDatesToGHLFormat,
+  convertDatesToSmartBuildFormat,
+} from "../utils/smartbuildUtils.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
-  const { opportunityID, opportunityData } = retrieveOpportunityData(req.body);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { opportunityID, opportunityData } = retrieveOpportunityData(data);
 
   const authenticatedLocation = await getAuthenticatedLocation(locationId);
   await updateOpportunity(
@@ -32,24 +36,6 @@ export const updateOpportunityAction = async (req, res) => {
   );
 
   return res.status(200).send();
-};
-
-export const getOpportunityAction = async (req, res, next) => {
-  const { opportunityId, locationId } = req.query;
-  if (!opportunityId || !locationId) {
-    throw new AppError(
-      "No opportunity id or location id provided",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
-
-  const authenticatedLocation = await getAuthenticatedLocation(locationId);
-  const opportunity = await getOpportunity(
-    authenticatedLocation.accessToken,
-    opportunityId
-  );
-  return res.status(200).json(opportunity);
 };
 
 export const getOpportunityCustomFields = async (req, res, next) => {
@@ -68,6 +54,8 @@ export const getOpportunityCustomFields = async (req, res, next) => {
 export const getSmartbuildFields = async (req, res, next) => {
   const locationId = getLocationIdFromRequest(req);
 
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
   const authenticatedSmartbuild = await getAuthenticatedSmartbuild(locationId);
 
   const customFields = await retrieveSmartbuildCustomFields(
@@ -81,12 +69,17 @@ export const getSmartbuildFields = async (req, res, next) => {
 
 export const retrieveSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
+
+  const data = sanitizeInput(req.body?.data || req.body);
+
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
   const smartbuildAuthentication = await getSmartbuildAuthentication(
-    req.body,
+    data,
     locationId
   );
   const { jobID, extraUserAnswers, extraTokenValues } =
-    getRetrieveSmartbuildJobMetaData(req.body);
+    getRetrieveSmartbuildJobMetaData(data);
   const jobInfoIds = [
     ...new Set([...DEFAULT_JOB_INFO_IDS, ...extraUserAnswers]),
   ];
@@ -100,25 +93,34 @@ export const retrieveSmartbuildJob = async (req, res) => {
     jobInfoIds,
     jobTokenValues
   );
-  return res.status(200).json(jobData);
+  const convertedJobData = convertDatesToGHLFormat(jobData);
+  convertedJobData["CurrentDate"] = new Date().toISOString().split("T")[0];
+  return res.status(200).json(convertedJobData);
 };
 
 export const createOrEditSmartbuildJob = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
-  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(req.body);
+
+  const data = sanitizeInput(req.body?.data || req.body);
+
+  await getAuthenticatedLocation(locationId); //To prevent unauthorized access
+
+  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(data);
   const smartbuildAuthentication = await getSmartbuildAuthentication(
-    req.body,
+    data,
     locationId
   );
-  const cleanedBody = removeProcessedKeys(req.body);
 
-  const updatedOrCreatedJob = await createOrEditJob(
+  const cleanedBody = removeProcessedKeys(data);
+  const convertedBody = convertDatesToSmartBuildFormat(cleanedBody);
+
+  const updatedOrCreatedJobId = await createOrEditJob(
     smartbuildAuthentication.accessToken,
     isCreate ? "0" : jobID,
     modelID,
-    cleanedBody
+    convertedBody
   );
-  return res.status(200).json(updatedOrCreatedJob);
+  return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });
 };
 
 const getLocationIdFromRequest = (req) => {
@@ -187,22 +189,47 @@ const getRetrieveSmartbuildJobMetaData = (body) => {
   };
 };
 
-const removeProcessedKeys = (body) => {
-  const updatedBody = { ...body };
+const removeProcessedKeys = (data) => {
+  const updatedData = { ...data };
 
-  delete updatedBody.jobID;
-  delete updatedBody.modelID;
-  delete updatedBody.username;
-  delete updatedBody.password;
-  return updatedBody;
+  delete updatedData.jobID;
+  delete updatedData.modelID;
+  delete updatedData.username;
+  delete updatedData.password;
+  return updatedData;
 };
 
 const getSmartbuildAuthentication = async (body, locationId) => {
   const { username, password } = body;
 
-  if (username && username.trim() !== "") {
+  if (username) {
     return await getSmartbuildToken(username, password);
   }
 
   return await getAuthenticatedSmartbuild(locationId);
+};
+
+
+const sanitizeInput = (obj) => {
+  const cleaned = {};
+  for (const key in obj) {
+    const value = obj[key];
+    if (isValidValue(value)) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+};
+
+const isValidValue = (value) => {
+  if (value === null || value === undefined) return false;
+
+  if (typeof value === "object") return true; // keep nested objects/arrays
+
+  if (typeof value === "string") {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed !== "" && trimmed !== "nan";
+  }
+
+  return true; // optionally allow numbers, booleans, etc.
 };
