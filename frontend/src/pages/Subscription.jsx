@@ -1,0 +1,463 @@
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  Code,
+  Divider,
+} from "@mantine/core";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconCreditCard,
+  IconX,
+  IconRefresh,
+} from "@tabler/icons-react";
+import { useAuth } from "../context/AuthProvider";
+import { useState, useEffect } from "react";
+import { useDisclosure } from "@mantine/hooks";
+
+export default function Subscription() {
+  const { user, entitlement, refreshAuth } = useAuth();
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [paymentModalOpened, { open: openPaymentModal, close: closePaymentModal }] =
+    useDisclosure(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [paymentToken, setPaymentToken] = useState("");
+
+  const status = entitlement?.status || "inactive";
+  const subscriptionByThisUser = entitlement?.subscriptionByThisUser || false;
+  const paymentDetails = entitlement?.paymentDetails || null;
+
+  const isPendingState =
+    status === "pending-cancel" ||
+    status === "pending-update-payment" ||
+    status === "pending-resume";
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const fetchPlans = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/subscription/plans", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch plans");
+      const data = await response.json();
+      setPlans(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAction = async (action, data = {}) => {
+    setActionLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`/api/subscription/${action}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Action failed");
+      }
+
+      setSuccess(`Subscription ${action} completed successfully!`);
+      closePaymentModal();
+      setPaymentToken("");
+      setSelectedPlan(null);
+      
+      // Refresh auth data to get updated entitlement
+      if (refreshAuth) {
+        await refreshAuth();
+      }
+    } catch (err) {
+      setError(err.message || "An error occurred");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateSubscription = () => {
+    if (!selectedPlan || !paymentToken) {
+      setError("Please select a plan and provide payment token");
+      return;
+    }
+    handleAction("create", {
+      planId: selectedPlan.id,
+      paymentToken: paymentToken,
+    });
+  };
+
+  const handleUpdatePayment = () => {
+    if (!paymentToken) {
+      setError("Please provide payment token");
+      return;
+    }
+    handleAction("update-payment", { paymentToken });
+  };
+
+  const getStatusBadge = () => {
+    const statusColors = {
+      active: "green",
+      "pending-cancel": "yellow",
+      cancelled: "red",
+      inactive: "gray",
+      "pending-update-payment": "yellow",
+      "pending-resume": "yellow",
+    };
+
+    const statusLabels = {
+      active: "Active",
+      "pending-cancel": "Pending Cancel",
+      cancelled: "Cancelled",
+      inactive: "Inactive",
+      "pending-update-payment": "Pending Payment Update",
+      "pending-resume": "Pending Resume",
+    };
+
+    return (
+      <Badge
+        color={statusColors[status] || "gray"}
+        variant="light"
+        size="lg"
+      >
+        {statusLabels[status] || status}
+      </Badge>
+    );
+  };
+
+  const renderPendingNotification = () => {
+    if (!isPendingState) return null;
+
+    const messages = {
+      "pending-cancel": "Your subscription cancellation is being processed. Please wait for confirmation.",
+      "pending-update-payment": "Your payment update is being processed. Please wait for confirmation.",
+      "pending-resume": "Your subscription resumption is being processed. Please wait for confirmation.",
+    };
+
+    return (
+      <Alert
+        icon={<IconAlertCircle size="1rem" />}
+        title="Action Pending"
+        color="yellow"
+        variant="light"
+      >
+        {messages[status]}
+      </Alert>
+    );
+  };
+
+  const renderActiveActions = () => {
+    if (status !== "active" || isPendingState) return null;
+
+    return (
+      <Stack gap="md">
+        <Title order={4}>Subscription Actions</Title>
+        <Group>
+          <Button
+            color="red"
+            variant="light"
+            leftSection={<IconX size="1rem" />}
+            onClick={() => handleAction("cancel")}
+            loading={actionLoading}
+          >
+            Cancel Subscription
+          </Button>
+          <Button
+            color="blue"
+            variant="light"
+            leftSection={<IconCreditCard size="1rem" />}
+            onClick={openPaymentModal}
+            loading={actionLoading}
+          >
+            Update Payment
+          </Button>
+        </Group>
+        {subscriptionByThisUser && paymentDetails && (
+          <Paper withBorder p="md" radius="md" mt="md">
+            <Stack gap="sm">
+              <Text fw={600}>Current Payment Details</Text>
+              <Code block fz="sm">
+                {JSON.stringify(paymentDetails, null, 2)}
+              </Code>
+            </Stack>
+          </Paper>
+        )}
+      </Stack>
+    );
+  };
+
+  const renderInactiveActions = () => {
+    if (status !== "inactive" || isPendingState) return null;
+
+    return (
+      <Stack gap="md">
+        <Title order={4}>Create Subscription</Title>
+        <Text c="dimmed">
+          Select a plan below to create your subscription.
+        </Text>
+        {loading ? (
+          <Loader />
+        ) : plans.length > 0 ? (
+          <Stack gap="md">
+            {plans.map((plan) => (
+              <Card
+                key={plan.id}
+                withBorder
+                radius="md"
+                p="md"
+                style={{
+                  cursor: "pointer",
+                  borderColor:
+                    selectedPlan?.id === plan.id
+                      ? "var(--mantine-color-indigo-6)"
+                      : undefined,
+                }}
+                onClick={() => setSelectedPlan(plan)}
+              >
+                <Group justify="space-between">
+                  <div>
+                    <Text fw={600}>{plan.name}</Text>
+                    <Text size="sm" c="dimmed">
+                      {plan.description}
+                    </Text>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <Text fw={700} size="xl">
+                      ${plan.amount}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {plan.currency} / month
+                    </Text>
+                  </div>
+                </Group>
+              </Card>
+            ))}
+            <Button
+              onClick={openPaymentModal}
+              disabled={!selectedPlan}
+              loading={actionLoading}
+              fullWidth
+            >
+              Continue with Selected Plan
+            </Button>
+          </Stack>
+        ) : (
+          <Text c="dimmed">No plans available</Text>
+        )}
+      </Stack>
+    );
+  };
+
+  const renderCancelledActions = () => {
+    if (status !== "cancelled" || isPendingState) return null;
+
+    return (
+      <Stack gap="md">
+        <Title order={4}>Subscription Actions</Title>
+        <Group>
+          {subscriptionByThisUser ? (
+            <>
+              <Button
+                color="green"
+                variant="light"
+                leftSection={<IconRefresh size="1rem" />}
+                onClick={() => handleAction("resume")}
+                loading={actionLoading}
+              >
+                Resume Subscription
+              </Button>
+              <Button
+                color="blue"
+                variant="light"
+                leftSection={<IconCreditCard size="1rem" />}
+                onClick={openPaymentModal}
+                loading={actionLoading}
+              >
+                Update Payment (Resume)
+              </Button>
+            </>
+          ) : (
+            <Button
+              color="blue"
+              variant="light"
+              leftSection={<IconCreditCard size="1rem" />}
+              onClick={openPaymentModal}
+              loading={actionLoading}
+            >
+              Update Payment (Resume)
+            </Button>
+          )}
+        </Group>
+      </Stack>
+    );
+  };
+
+  return (
+    <Stack gap="lg">
+      <Stack gap={4}>
+        <Title order={2}>Subscription Management</Title>
+        <Text c="dimmed">
+          Manage your subscription, payment methods, and billing information.
+        </Text>
+      </Stack>
+
+      {error && (
+        <Alert
+          icon={<IconX size="1rem" />}
+          title="Error"
+          color="red"
+          variant="light"
+          onClose={() => setError(null)}
+          withCloseButton
+        >
+          {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert
+          icon={<IconCheck size="1rem" />}
+          title="Success"
+          color="green"
+          variant="light"
+          onClose={() => setSuccess(null)}
+          withCloseButton
+        >
+          {success}
+        </Alert>
+      )}
+
+      {renderPendingNotification()}
+
+      <Paper withBorder shadow="sm" radius="lg" p="lg">
+        <Stack gap="md">
+          <Group justify="space-between" align="center">
+            <div>
+              <Text fw={600} size="lg">
+                Current Status
+              </Text>
+              <Text size="sm" c="dimmed">
+                Your subscription status and details
+              </Text>
+            </div>
+            {getStatusBadge()}
+          </Group>
+
+          <Divider />
+
+          <Group gap="md">
+            <div>
+              <Text size="xs" c="dimmed">
+                Subscription Owner
+              </Text>
+              <Text size="sm" fw={500}>
+                {subscriptionByThisUser ? "You" : "Another User"}
+              </Text>
+            </div>
+            {entitlement?.activeUntil && (
+              <div>
+                <Text size="xs" c="dimmed">
+                  Active Until
+                </Text>
+                <Text size="sm" fw={500}>
+                  {new Date(entitlement.activeUntil).toLocaleDateString()}
+                </Text>
+              </div>
+            )}
+            {entitlement?.planId && (
+              <div>
+                <Text size="xs" c="dimmed">
+                  Plan ID
+                </Text>
+                <Text size="sm" fw={500}>
+                  {entitlement.planId}
+                </Text>
+              </div>
+            )}
+          </Group>
+        </Stack>
+      </Paper>
+
+      {renderActiveActions()}
+      {renderInactiveActions()}
+      {renderCancelledActions()}
+
+      <Modal
+        opened={paymentModalOpened}
+        onClose={closePaymentModal}
+        title="Payment Information"
+        size="md"
+      >
+        <Stack gap="md">
+          {status === "inactive" && selectedPlan && (
+            <Alert color="blue" variant="light">
+              <Text size="sm">
+                Selected Plan: <strong>{selectedPlan.name}</strong> - $
+                {selectedPlan.amount}/{selectedPlan.currency} per month
+              </Text>
+            </Alert>
+          )}
+
+          <Text size="sm" c="dimmed">
+            {status === "inactive"
+              ? "Please provide your payment token to create the subscription."
+              : "Please provide your payment token to update payment method."}
+          </Text>
+
+          <TextInput
+            label="Payment Token"
+            placeholder="Enter payment token"
+            value={paymentToken}
+            onChange={(e) => setPaymentToken(e.target.value)}
+            required
+          />
+
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" onClick={closePaymentModal}>
+              Cancel
+            </Button>
+            <Button
+              onClick={
+                status === "inactive"
+                  ? handleCreateSubscription
+                  : handleUpdatePayment
+              }
+              loading={actionLoading}
+              disabled={!paymentToken}
+            >
+              {status === "inactive" ? "Create Subscription" : "Update Payment"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
+  );
+}
+

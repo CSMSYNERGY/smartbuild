@@ -1,5 +1,6 @@
 export const PlansConfig = {
-  DEPOSYT_API_URL: "https://deposyt.transactiongateway.com/api/transact.php",
+  DEPOSYT_PAYMENT_URL: "https://deposyt.transactiongateway.com/api/transact.php",
+  DEPOSYT_QUERY_URL: "https://deposyt.transactiongateway.com/api/query.php",
   PLANS: [
     {
       id: "CPI_MONTHLY",

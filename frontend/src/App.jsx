@@ -14,12 +14,15 @@ import {
   Group,
   MantineProvider,
   Title,
+  Text,
   createTheme,
   rem,
 } from "@mantine/core";
 import { IconExternalLink } from "@tabler/icons-react";
 import Home from "./pages/Home.jsx";
-import { AuthProvider } from "./context/AuthProvider.jsx";
+import Subscription from "./pages/Subscription.jsx";
+import Configuration from "./pages/Configuration.jsx";
+import { AuthProvider, useAuth } from "./context/AuthProvider.jsx";
 
 const theme = createTheme({
   fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -29,7 +32,12 @@ const theme = createTheme({
 
 function HeaderNav() {
   const location = useLocation();
-  const links = [{ to: "/home", label: "Home" }];
+  const { user } = useAuth();
+  const links = [
+    { to: "/home", label: "Home" },
+    { to: "/subscription", label: "Subscription" },
+    { to: "/configuration", label: "Configuration" },
+  ];
   const isEmbedded =
     typeof window !== "undefined" && window.self !== window.top;
 
@@ -43,7 +51,7 @@ function HeaderNav() {
       <Title order={4} fw={700}>
         SmartBuild Integrations
       </Title>
-      <Group gap="sm" align="center">
+      <Group gap="md" align="center">
         {links.map((link) => {
           const isActive = location.pathname === link.to;
           return (
@@ -60,6 +68,11 @@ function HeaderNav() {
             </Anchor>
           );
         })}
+        {user && (
+          <Text size="sm" c="dimmed" style={{ marginLeft: "1rem" }}>
+            Logged in as {user.userName}
+          </Text>
+        )}
         {isEmbedded && (
           <ActionIcon
             variant="subtle"
@@ -99,6 +112,8 @@ function App() {
               <Container size="lg" py="lg">
                 <Routes>
                   <Route path="/home" element={<Home />} />
+                  <Route path="/subscription" element={<Subscription />} />
+                  <Route path="/configuration" element={<Configuration />} />
                   <Route path="*" element={<Navigate to="/home" replace />} />
                 </Routes>
               </Container>

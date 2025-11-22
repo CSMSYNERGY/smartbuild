@@ -17,6 +17,12 @@ import {
 import logger from "../config/logger.js";
 import axios from "axios";
 import { AppError } from "../models/errors.js";
+import {
+  updateGatewaySubscriptionPayment,
+  createGatewaySubscription,
+  pauseGatewaySubscription,
+  getGatewaySubscriptionDetails,
+} from "./deposytCommunicatorService.js";
 
 export const getEntitlementDetails = async (webUser) => {
   try {
@@ -204,27 +210,7 @@ export const cancelSubscription = async (user) => {
     );
   }
 
-  // Build recurring "delete_subscription" request
-  const payload = new URLSearchParams();
-  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
-  payload.append("recurring", "delete_subscription");
-  payload.append("subscription_id", subscriptionId);
-
-  const gatewayResponse = await axios.post(
-    PlansConfig.DEPOSYT_API_URL, // same transact.php endpoint
-    payload.toString(),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
-
-  const parsed = parseGatewayResponse(gatewayResponse.data);
-
-  if (parsed.response !== "1") {
-    throw new AppError(
-      parsed.responsetext || "Gateway did not approve subscription cancel.",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
+  await pauseGatewaySubscription(subscriptionId, true);
 
   const now = Date.now();
 
@@ -241,34 +227,9 @@ export const cancelSubscription = async (user) => {
   return { ok: true, status: "pending-cancel" };
 };
 
-export const updateCard = async (user, paymentToken) => {
-  const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
-  if (!DEPOSYT_PRIVATE_API_KEY) {
-    throw new AppError(
-      "DEPOSYT_PRIVATE_API_KEY is not set",
-      500,
-      ErrorCodes.INTERNAL_SERVER_ERROR
-    );
-  }
-
-  if (!user || !user.id || !user.locationId) {
-    throw new AppError(
-      "User or location is missing from session",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
-
-  // Get subscription to read customerVaultId
+export const updatePayment = async (user, paymentToken) => {
+  // Get entitlement
   const entitlement = await getEntitlement(user.locationId);
-
-  if (
-    !entitlement ||
-    entitlement.status !== "active" ||
-    entitlement.userId !== user.id
-  ) {
-    throw new AppError("No subscription found", 404, ErrorCodes.NOT_FOUND);
-  }
 
   const subscriptionId = entitlement.subscriptionId;
 
@@ -282,39 +243,43 @@ export const updateCard = async (user, paymentToken) => {
     );
   }
 
-  const { customerVaultId } = subscription;
+  await updateGatewaySubscriptionPayment({
+    subscriptionId,
+    paymentToken,
+    paused: false,
+  });
 
-  if (!customerVaultId) {
+  await saveEntitlement(user.locationId, {
+    status: "pending-update-payment",
+    updatedAt: Date.now(),
+  });
+
+  return { ok: true };
+};
+
+export const resumeSubscription = async (user) => {
+  // Get entitlement
+  const { subscriptionId, subscriptionByThisUser, status } =
+    await getEntitlementDetails(user);
+
+  if (status === "active") {
     throw new AppError(
-      "Customer Vault ID missing for this subscription",
+      "Subscription is already active",
       400,
       ErrorCodes.BAD_REQUEST
     );
   }
 
-  // Use "update_customer" against the vault with the new payment_token
-  const payload = new URLSearchParams();
-  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
-  payload.append("customer_vault", "update_customer");
-  payload.append("customer_vault_id", customerVaultId);
-  payload.append("payment_token", paymentToken);
+  await updateGatewaySubscriptionPayment({
+    subscriptionId,
+    paymentToken: null,
+    paused: false,
+  });
 
-  const gatewayResponse = await axios.post(
-    PlansConfig.DEPOSYT_API_URL,
-    payload.toString(),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    }
-  );
-
-  const parsed = parseGatewayResponse(gatewayResponse.data);
-  if (parsed.response !== "1") {
-    const msg =
-      parsed.responsetext || "Gateway did not approve payment method update.";
-    throw new AppError(msg, 400, ErrorCodes.BAD_REQUEST);
-  }
+  await saveEntitlement(user.locationId, {
+    status: "pending-resume",
+    updatedAt: Date.now(),
+  });
 
   return { ok: true };
 };
@@ -324,15 +289,6 @@ export const getSavedPlans = () => {
 };
 
 export const createSubscription = async (user, paymentToken, planId) => {
-  const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
-  if (!DEPOSYT_PRIVATE_API_KEY) {
-    throw new AppError(
-      "DEPOSYT_PRIVATE_API_KEY is not set",
-      500,
-      ErrorCodes.INTERNAL_SERVER_ERROR
-    );
-  }
-
   if (!user || !user.id || !user.locationId) {
     throw new AppError(
       "User or location is missing from session",
@@ -357,49 +313,14 @@ export const createSubscription = async (user, paymentToken, planId) => {
     );
   }
 
-  // Build Payment API payload:
-  // - type=sale     -> charge now
-  // - amount        -> first charge
-  // - payment_token -> from Collect.js
-  // - recurring=add_subscription + plan_id -> create subscription for next cycles
-  const payload = new URLSearchParams();
-  payload.append("security_key", DEPOSYT_PRIVATE_API_KEY);
-  payload.append("type", "sale");
-  payload.append("amount", amount.toFixed(2));
-  payload.append("currency", plan.currency);
-  payload.append("payment_token", paymentToken);
-
-  // mark as recurring + attach to plan
-  payload.append("billing_method", "recurring");
-  payload.append("recurring", "add_subscription");
-  payload.append("plan_id", String(plan.id));
-
-  // optional but nice to have
-  payload.append("customer_receipt", "true");
-  payload.append("orderid", `sub-${user.locationId}-${planId}-${Date.now()}`);
-  if (user.email) {
-    payload.append("email", user.email);
-  }
-
-  const gatewayResponse = await axios.post(
-    PlansConfig.DEPOSYT_API_URL,
-    payload.toString(),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    }
-  );
-
-  const parsed = parseGatewayResponse(gatewayResponse.data);
-
-  // Deposyt standard fields (see "Transaction Response Variables"):
-  // response: 1 = approved, 2 = declined, 3 = error
-  if (parsed.response !== "1") {
-    throw new AppError(
-      parsed.responsetext || "Payment was not approved by the gateway."
-    );
-  }
+  const parsed = await createGatewaySubscription({
+    amount,
+    currency: plan.currency,
+    paymentToken,
+    planId,
+    email: user.email,
+    orderId: `sub-${user.locationId}-${planId}-${Date.now()}`,
+  });
 
   const subscriptionId = parsed.subscription_id;
   const customerVaultId = parsed.customer_vault_id;
@@ -545,6 +466,21 @@ const handleSubscriptionAdded = async (eventBody) => {
     return;
   }
 
+  const gatewaySubscriptionDetails = await getGatewaySubscriptionDetails(
+    subscriptionId
+  );
+  if (!gatewaySubscriptionDetails) {
+    logger.warn(
+      `Webhook add for unknown subscription_id=${subscriptionId}, skipping entitlement update on add.`
+    );
+    return;
+  }
+
+  logger.info(
+    `Deposyt add webhook received for sub=${subscriptionId}`,
+    gatewaySubscriptionDetails
+  );
+
   // Entitlement: active, and now has subscriptionEndDate = next_charge_date
   await saveEntitlement(entitlementId, {
     id: entitlementId,
@@ -572,6 +508,20 @@ const handleSubscriptionUpdated = async (eventBody) => {
       `Webhook update for unknown subscription_id=${subscriptionId}, saving stub subscription`
     );
   }
+  const gatewaySubscriptionDetails = await getGatewaySubscriptionDetails(
+    subscriptionId
+  );
+  if (!gatewaySubscriptionDetails) {
+    logger.warn(
+      `Webhook update for unknown subscription_id=${subscriptionId}, skipping entitlement update on update.`
+    );
+    return;
+  }
+
+  logger.info(
+    `Deposyt updated webhook received for sub=${subscriptionId}`,
+    gatewaySubscriptionDetails
+  );
 
   const entitlementId = existingSub?.entitlementId;
   const planId = planIdFromGateway || existingSub?.planId;
