@@ -1,6 +1,6 @@
 // firestoreService.js
 import db from "../config/firestoreConfig.js";
-import { AppError } from "../models/errors.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
 
 export const saveSmartbuildAuthData = async (locationId, authData) => {
   try {
