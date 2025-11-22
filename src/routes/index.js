@@ -8,12 +8,15 @@ import webAuthRoutes from "./webAuthRoutes.js";
 import webApiRoutes from "./webApiRoutes.js";
 import { requireWebSession } from "../middlewares/webAuthMiddleware.js";
 import cors from "cors";
+import { verifyDeposytSigningKey } from "../middlewares/deposytWebhookMiddleware.js";
+import deposytWebhookRoutes from "./deposytWebhookRoutes.js";
 
 
 const router = express.Router();
 router.get("/", (_, res) => res.send("GHLSmartBuildApp is running..."));
 router.use("/auth", authRoutes);
 router.use("/actions", actionLogger, verifyAPIKey, actionsRoutes); // For testing. Remove actionLogger for prod..
+router.use("/webhooks", verifyDeposytSigningKey, deposytWebhookRoutes);
 
 // --- CORS for UI endpoints only (for dev + any external UI origin) ---
 const webCors = cors({

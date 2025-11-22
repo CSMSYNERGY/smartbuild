@@ -13,38 +13,29 @@ export default function Home() {
         </Text>
       </Stack>
 
-      {user ? (
-        <Paper withBorder shadow="sm" radius="lg" p="lg">
-          <Stack gap="sm">
-            <Group justify="space-between" align="flex-start">
-              <div>
-                <Text fw={600}>Session payload</Text>
-                <Text size="sm" c="dimmed">
-                  These values are stored in your secure session cookie.
-                </Text>
-              </div>
-            </Group>
-            <Code
-              block
-              fz="sm"
-              style={{
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontFamily: "Menlo, Monaco, Consolas, monospace",
-              }}
-            >
-              {JSON.stringify(user, null, 2)}
-            </Code>
-          </Stack>
-        </Paper>
-      ) : (
-        <Paper withBorder radius="lg" p="lg" shadow="xs">
-          <Text c="dimmed">
-            No authenticated user detected. Use the SmartBuild embed to connect
-            your account.
-          </Text>
-        </Paper>
-      )}
+      <Paper withBorder shadow="sm" radius="lg" p="lg">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <div>
+              <Text fw={600}>Session payload</Text>
+              <Text size="sm" c="dimmed">
+                These values are stored in your secure session cookie.
+              </Text>
+            </div>
+          </Group>
+          <Code
+            block
+            fz="sm"
+            style={{
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+            }}
+          >
+            {JSON.stringify(user, null, 2)}
+          </Code>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }
