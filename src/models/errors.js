@@ -17,6 +17,7 @@ export class AppError extends Error {
     BAD_REQUEST: 'BAD_REQUEST',
     INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
     LOCATION_NOT_SUBSCRIBED: 'LOCATION_NOT_SUBSCRIBED',
+    BAD_GATEWAY: 'BAD_GATEWAY',
   };
   
   // Helper functions to create specific errors

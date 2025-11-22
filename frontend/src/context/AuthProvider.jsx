@@ -15,6 +15,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // { id, email, locationId, ... }
+  const [entitlement, setEntitlement] = useState(null); // { status, subscriptionByThisUser, ... }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const cancelledRef = useRef(false);
@@ -29,7 +30,8 @@ export function AuthProvider({ children }) {
       if (cancelledRef.current) return;
 
       if (existing) {
-        setUser(existing);
+        setUser(existing.user || existing);
+        setEntitlement(existing.entitlement || null);
         setLoading(false);
         return;
       }
@@ -51,7 +53,8 @@ export function AuthProvider({ children }) {
         throw new Error("Session not established after decrypt");
       }
 
-      setUser(authed);
+      setUser(authed.user || authed);
+      setEntitlement(authed.entitlement || null);
       setLoading(false);
     } catch (err) {
       if (cancelledRef.current) return;
@@ -71,8 +74,10 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    entitlement,
     loading,
     error,
+    refreshAuth: init, // Allow components to refresh auth data
   };
 
   if (loading) {
