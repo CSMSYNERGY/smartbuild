@@ -9,7 +9,6 @@ import {
   Paper,
   Stack,
   Text,
-  TextInput,
   Title,
   Code,
   Divider,
@@ -24,6 +23,7 @@ import {
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
 import { useDisclosure } from "@mantine/hooks";
+import PaymentForm from "../components/PaymentForm";
 
 export default function Subscription() {
   const { user, entitlement, refreshAuth } = useAuth();
@@ -35,7 +35,7 @@ export default function Subscription() {
   const [paymentModalOpened, { open: openPaymentModal, close: closePaymentModal }] =
     useDisclosure(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [paymentToken, setPaymentToken] = useState("");
+  const [paymentAction, setPaymentAction] = useState("create"); // "create" or "update-payment"
 
   const status = entitlement?.status || "inactive";
   const subscriptionByThisUser = entitlement?.subscriptionByThisUser || false;
@@ -88,9 +88,6 @@ export default function Subscription() {
       }
 
       setSuccess(`Subscription ${action} completed successfully!`);
-      closePaymentModal();
-      setPaymentToken("");
-      setSelectedPlan(null);
       
       // Refresh auth data to get updated entitlement
       if (refreshAuth) {
@@ -103,23 +100,24 @@ export default function Subscription() {
     }
   };
 
-  const handleCreateSubscription = () => {
-    if (!selectedPlan || !paymentToken) {
-      setError("Please select a plan and provide payment token");
-      return;
+  const handlePaymentSuccess = () => {
+    closePaymentModal();
+    setSelectedPlan(null);
+    setPaymentAction("create");
+    // Refresh auth data to get updated entitlement
+    if (refreshAuth) {
+      refreshAuth();
     }
-    handleAction("create", {
-      planId: selectedPlan.id,
-      paymentToken: paymentToken,
-    });
   };
 
-  const handleUpdatePayment = () => {
-    if (!paymentToken) {
-      setError("Please provide payment token");
-      return;
-    }
-    handleAction("update-payment", { paymentToken });
+  const openCreatePaymentModal = () => {
+    setPaymentAction("create");
+    openPaymentModal();
+  };
+
+  const openUpdatePaymentModal = () => {
+    setPaymentAction("update-payment");
+    openPaymentModal();
   };
 
   const getStatusBadge = () => {
@@ -193,7 +191,7 @@ export default function Subscription() {
             color="blue"
             variant="light"
             leftSection={<IconCreditCard size="1rem" />}
-            onClick={openPaymentModal}
+            onClick={openUpdatePaymentModal}
             loading={actionLoading}
           >
             Update Payment
@@ -260,7 +258,7 @@ export default function Subscription() {
               </Card>
             ))}
             <Button
-              onClick={openPaymentModal}
+              onClick={openCreatePaymentModal}
               disabled={!selectedPlan}
               loading={actionLoading}
               fullWidth
@@ -297,7 +295,7 @@ export default function Subscription() {
                 color="blue"
                 variant="light"
                 leftSection={<IconCreditCard size="1rem" />}
-                onClick={openPaymentModal}
+                onClick={openUpdatePaymentModal}
                 loading={actionLoading}
               >
                 Update Payment (Resume)
@@ -308,7 +306,7 @@ export default function Subscription() {
               color="blue"
               variant="light"
               leftSection={<IconCreditCard size="1rem" />}
-              onClick={openPaymentModal}
+              onClick={openUpdatePaymentModal}
               loading={actionLoading}
             >
               Update Payment (Resume)
@@ -412,11 +410,15 @@ export default function Subscription() {
       <Modal
         opened={paymentModalOpened}
         onClose={closePaymentModal}
-        title="Payment Information"
-        size="md"
+        title={
+          paymentAction === "create"
+            ? "Create Subscription"
+            : "Update Payment Method"
+        }
+        size="lg"
       >
         <Stack gap="md">
-          {status === "inactive" && selectedPlan && (
+          {paymentAction === "create" && selectedPlan && (
             <Alert color="blue" variant="light">
               <Text size="sm">
                 Selected Plan: <strong>{selectedPlan.name}</strong> - $
@@ -425,36 +427,17 @@ export default function Subscription() {
             </Alert>
           )}
 
-          <Text size="sm" c="dimmed">
-            {status === "inactive"
-              ? "Please provide your payment token to create the subscription."
-              : "Please provide your payment token to update payment method."}
-          </Text>
-
-          <TextInput
-            label="Payment Token"
-            placeholder="Enter payment token"
-            value={paymentToken}
-            onChange={(e) => setPaymentToken(e.target.value)}
-            required
+          <PaymentForm
+            user={user}
+            planId={selectedPlan?.id}
+            action={paymentAction}
+            onSuccess={handlePaymentSuccess}
+            buttonText={
+              paymentAction === "create"
+                ? "Start Subscription"
+                : "Update Payment Method"
+            }
           />
-
-          <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={closePaymentModal}>
-              Cancel
-            </Button>
-            <Button
-              onClick={
-                status === "inactive"
-                  ? handleCreateSubscription
-                  : handleUpdatePayment
-              }
-              loading={actionLoading}
-              disabled={!paymentToken}
-            >
-              {status === "inactive" ? "Create Subscription" : "Update Payment"}
-            </Button>
-          </Group>
         </Stack>
       </Modal>
     </Stack>

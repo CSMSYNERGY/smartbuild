@@ -9,8 +9,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       // forward to your existing Express server during dev
-      "/api": "http://localhost:8080",
-      "/sso": "http://localhost:8080",
+      "/api": "http://localhost:3000",
+      "/sso": "http://localhost:3000",
     },
   },
   build: {

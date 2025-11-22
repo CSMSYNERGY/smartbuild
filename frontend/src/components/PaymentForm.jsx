@@ -19,7 +19,13 @@ const COLLECT_JS_URL =
 // Your Deposyt/NMI Collect.js tokenization key (public)
 const TOKENIZATION_KEY = "m8B7kj-XTb9c3-E8vp29-3gJ532";
 
-export default function PaymentForm({ user, planId }) {
+export default function PaymentForm({
+  user,
+  planId,
+  action = "create", // "create" or "update-payment"
+  onSuccess,
+  buttonText,
+}) {
   const [email, setEmail] = useState(user?.email || "");
   const [nameOnCard, setNameOnCard] = useState(user?.userName || "");
   const [isLoadingScript, setIsLoadingScript] = useState(true);
@@ -153,15 +159,22 @@ export default function PaymentForm({ user, planId }) {
 
       setIsSubmitting(true);
 
-      const res = await fetch("/api/subscription/create", {
+      const endpoint =
+        action === "create"
+          ? "/api/subscription/create"
+          : "/api/subscription/update-payment";
+
+      const body =
+        action === "create"
+          ? { paymentToken, planId }
+          : { paymentToken };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          paymentToken,
-          planId,
-        }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
 
@@ -178,7 +191,19 @@ export default function PaymentForm({ user, planId }) {
         throw new Error(message);
       }
 
-      setSuccessMessage("Subscription activated successfully. 🎉");
+      const successMsg =
+        action === "create"
+          ? "Subscription activated successfully. 🎉"
+          : "Payment method updated successfully. 🎉";
+
+      setSuccessMessage(successMsg);
+
+      // Call onSuccess callback if provided
+      if (onSuccess) {
+        setTimeout(() => {
+          onSuccess();
+        }, 1500);
+      }
     } catch (err) {
       console.error(err);
       setApiError(err.message || "Something went wrong during payment.");
@@ -277,6 +302,7 @@ export default function PaymentForm({ user, planId }) {
             type="button"
             mt="md"
             disabled={isLoadingScript || isSubmitting}
+            fullWidth
           >
             {isLoadingScript ? (
               <Group gap={8}>
@@ -289,7 +315,10 @@ export default function PaymentForm({ user, planId }) {
                 <Text size="sm">Processing payment…</Text>
               </Group>
             ) : (
-              "Start subscription"
+              buttonText ||
+              (action === "create"
+                ? "Start subscription"
+                : "Update payment method")
             )}
           </Button>
         </Stack>
