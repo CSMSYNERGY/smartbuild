@@ -1,5 +1,5 @@
 // frontend/src/components/PaymentForm.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -12,17 +12,15 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle, IconCheck } from "@tabler/icons-react";
 
-// Deposyt Collect.js
 const COLLECT_JS_URL =
   "https://deposyt.transactiongateway.com/token/Collect.js";
 
-// Your Deposyt/NMI Collect.js tokenization key (public)
 const TOKENIZATION_KEY = "m8B7kj-XTb9c3-E8vp29-3gJ532";
 
 export default function PaymentForm({
   user,
   planId,
-  action = "create", // "create" or "update-payment"
+  action = "create",
   onSuccess,
   buttonText,
 }) {
@@ -33,105 +31,40 @@ export default function PaymentForm({
   const [apiError, setApiError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Keep latest form data accessible for the Collect.js callback
-  const formDataRef = useRef({ email: "", nameOnCard: "" });
-
-  // Keep ref in sync with latest state values
-  useEffect(() => {
-    formDataRef.current = { email, nameOnCard };
-  }, [email, nameOnCard]);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Already loaded & configured
-    if (window.CollectJS && window.__collectJsConfigured) {
-      setIsLoadingScript(false);
-      return;
-    }
-
-    const existingScript = document.querySelector(
-      'script#sb-collectjs'
-    );
-
     const configureCollectJs = () => {
-      if (!window.CollectJS) return;
+      if (!window.CollectJS || window.__sbCollectConfigured) return;
 
       window.CollectJS.configure({
-        // This is the BUTTON that triggers tokenization (as in docs)
         paymentSelector: "#sbPayButton",
-        variant: "inline",
-        fields: {
-          // Use ccnumber / ccexp / cvv keys like the NMI examples
-          ccnumber: {
-            selector: "#sbCcnumber",
-            title: "Card Number",
-            placeholder: "0000 0000 0000 0000",
-          },
-          ccexp: {
-            selector: "#sbCcexp",
-            title: "Expiration",
-            placeholder: "MM / YY",
-          },
-          cvv: {
-            display: "show",
-            selector: "#sbCvv",
-            title: "CVC",
-            placeholder: "123",
-          },
-        },
-        // optional: you can style valid/invalid/focus if you want
-        // invalidCss: { ... },
-        // validCss: { ... },
-        // placeholderCss: { ... },
-        // focusCss: { ... },
-
-        // Called when tokenization completes
-        callback: (response) => {
-          handleToken(response);
-        },
-
-        // optional, for debugging field-level validation
-        // validationCallback: (field, status, message) => {
-        //   console.log(field, status, message);
-        // },
-
-        fieldsAvailableCallback: () => {
-          // Collect.js mounted the iframes into the divs
-          setIsLoadingScript(false);
-        },
-
-        timeoutDuration: 10000,
-        timeoutCallback: () => {
-          setApiError(
-            "Tokenization took too long. Please check your connection and try again."
-          );
-          setIsSubmitting(false);
-        },
+        // lightbox is the default variant – no need to specify
+        callback: (response) => handleToken(response),
       });
 
-      window.__collectJsConfigured = true;
+      window.__sbCollectConfigured = true;
+      setIsLoadingScript(false);
     };
 
-    if (existingScript) {
+    const existing = document.getElementById("sb-collectjs");
+    if (existing) {
       if (window.CollectJS) {
         configureCollectJs();
       } else {
-        existingScript.addEventListener("load", configureCollectJs);
+        existing.addEventListener("load", configureCollectJs);
       }
       return;
     }
 
-    // Create script tag exactly like NMI/Deposyt docs
     const script = document.createElement("script");
+    script.id = "sb-collectjs";
     script.src = COLLECT_JS_URL;
     script.async = true;
-    script.id = "sb-collectjs"; 
     script.setAttribute("data-tokenization-key", TOKENIZATION_KEY);
+    // no data-variant → defaults to lightbox
 
-    script.onload = () => {
-      configureCollectJs();
-    };
+    script.onload = configureCollectJs;
     script.onerror = () => {
       setApiError("Payment form failed to load. Please refresh and try again.");
       setIsLoadingScript(false);
@@ -145,17 +78,20 @@ export default function PaymentForm({
     };
   }, []);
 
-  const handleToken = async (response) => {
+  async function handleToken(response) {
     try {
       setApiError(null);
       setSuccessMessage(null);
 
-      const paymentToken = response?.token;
-      if (!paymentToken) {
-        setApiError("Failed to generate payment token. Please try again.");
+      if (!response || !response.token) {
+        const msg =
+          response?.error?.message ||
+          "Failed to generate payment token. Please try again.";
+        setApiError(msg);
         return;
       }
 
+      const paymentToken = response.token;
       setIsSubmitting(true);
 
       const endpoint =
@@ -164,15 +100,11 @@ export default function PaymentForm({
           : "/api/subscription/update-payment";
 
       const body =
-        action === "create"
-          ? { paymentToken, planId }
-          : { paymentToken };
+        action === "create" ? { paymentToken, planId } : { paymentToken };
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
@@ -185,7 +117,7 @@ export default function PaymentForm({
             message = data.message || data.error;
           }
         } catch {
-          // ignore JSON error
+          /* ignore */
         }
         throw new Error(message);
       }
@@ -197,11 +129,8 @@ export default function PaymentForm({
 
       setSuccessMessage(successMsg);
 
-      // Call onSuccess callback if provided
       if (onSuccess) {
-        setTimeout(() => {
-          onSuccess();
-        }, 1500);
+        setTimeout(() => onSuccess(), 1500);
       }
     } catch (err) {
       console.error(err);
@@ -209,11 +138,10 @@ export default function PaymentForm({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
 
   return (
     <Paper withBorder radius="lg" p="md">
-      {/* Prevent default submit behavior; Collect.js uses the button click */}
       <form onSubmit={(e) => e.preventDefault()}>
         <Stack gap="sm">
           <Text fw={600}>Billing details</Text>
@@ -232,47 +160,10 @@ export default function PaymentForm({
             onChange={(e) => setNameOnCard(e.currentTarget.value)}
           />
 
-          <Stack gap={4}>
-            <Text size="sm" fw={500}>
-              Card details
-            </Text>
-
-            {/* These IDs match what we pass in CollectJS.configure (ccnumber / ccexp / cvv) */}
-            <div
-              id="sbCcnumber"
-              style={{
-                border: "1px solid var(--mantine-color-gray-4)",
-                borderRadius: "8px",
-                padding: "8px 10px",
-                minHeight: 40,
-              }}
-            />
-            <Group grow gap="sm" mt={4}>
-              <div
-                id="sbCcexp"
-                style={{
-                  border: "1px solid var(--mantine-color-gray-4)",
-                  borderRadius: "8px",
-                  padding: "8px 10px",
-                  minHeight: 40,
-                }}
-              />
-              <div
-                id="sbCvv"
-                style={{
-                  border: "1px solid var(--mantine-color-gray-4)",
-                  borderRadius: "8px",
-                  padding: "8px 10px",
-                  minHeight: 40,
-                }}
-              />
-            </Group>
-
-            <Text size="xs" c="dimmed" mt={4}>
-              Card details are securely tokenized by our payment provider
-              (Deposyt/NMI). Your card information never reaches our servers.
-            </Text>
-          </Stack>
+          <Text size="xs" c="dimmed" mt={4}>
+            When you click the button below, a secure payment window from our
+            provider (Deposyt/NMI) will open to collect your card details.
+          </Text>
 
           {apiError && (
             <Alert
@@ -303,15 +194,12 @@ export default function PaymentForm({
             disabled={isLoadingScript || isSubmitting}
             fullWidth
           >
-            {isLoadingScript ? (
+            {isLoadingScript || isSubmitting ? (
               <Group gap={8}>
                 <Loader size="xs" />
-                <Text size="sm">Loading payment form…</Text>
-              </Group>
-            ) : isSubmitting ? (
-              <Group gap={8}>
-                <Loader size="xs" />
-                <Text size="sm">Processing payment…</Text>
+                <Text size="sm">
+                  {isLoadingScript ? "Loading payment…" : "Processing…"}
+                </Text>
               </Group>
             ) : (
               buttonText ||

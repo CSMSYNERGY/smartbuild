@@ -76,12 +76,12 @@ export const createGatewaySubscription = async ({
   const response = await axios.post(DEPOSYT_PAYMENT_URL, payload.toString(), {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-
+  console.log(response.status);
   const parsed = parseGatewayResponse(response.data);
-
+  console.log(parsed);
   if (parsed.response !== "1") {
     throw new AppError(
-      parsed.responsetext || "Gateway did not approve subscription creation.",
+      "Payment information is invalid. Please try again.",
       400,
       ErrorCodes.BAD_REQUEST
     );

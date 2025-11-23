@@ -16,7 +16,6 @@ import jwt from "jsonwebtoken";
  */
 export function requireWebSession(req, res, next) {
   // Development mode: bypass authentication and use constant dev user
-  console.log("NODE_ENV", process.env.NODE_ENV);
   if (process.env.NODE_ENV === "development") {
     req.webUser = {
       id: "g0KMCSyiM9dxTYz2R5SZ",
