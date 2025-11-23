@@ -1,4 +1,5 @@
 // tiny helper to parse Deposyt's query-string style response
+
 export const parseGatewayResponse = (body) => {
   // body: "response=1&responsetext=Approved&transactionid=123..."
   const params = new URLSearchParams(body);
@@ -22,10 +23,10 @@ export const computeSubscriptionEndDate = (eventBody, existingSub) => {
   return existingSub?.subscriptionEndDate ?? null;
 };
 
-export const isPlanValid = (eventBody) => {
+export const isPlanValid = (eventBody, plans) => {
   const planId = eventBody?.plan?.id;
 
   return planId
-    ? PlansConfig.PLANS.find((plan) => plan.id === planId) != null
+    ? plans.find((plan) => plan.id === planId) != null
     : false;
 };
