@@ -10,12 +10,10 @@ import {
 import { PlansConfig } from "../config/plansConfig.js";
 import { ErrorCodes } from "../models/errors.js";
 import {
-  parseGatewayResponse,
   computeSubscriptionEndDate,
   isPlanValid,
 } from "../utils/paymentUtils.js";
 import logger from "../config/logger.js";
-import axios from "axios";
 import { AppError } from "../models/errors.js";
 import {
   updateGatewaySubscriptionPayment,
@@ -54,7 +52,7 @@ export const getEntitlementDetails = async (webUser) => {
       subscriptionByThisUser,
       planId: base.planId,
       activeUntil: base.activeUntil ?? null,
-      paymentDetails, // ⬅️ NEW
+      paymentDetails,
     };
   } catch (error) {
     logger.error("Error getting subscription entitlement", error);
@@ -108,9 +106,9 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
 
     // 2) Pending-cancel → we know user requested cancel,
     // but we may not yet have the final end date from webhook.
-    if (status === "pending-cancel") {
+    if (status.includes("pending")) {
       return {
-        status: "pending-cancel",
+        status: status,
         planId,
         activeUntil: subscriptionEndMs ?? null,
         entitlementUserId,
