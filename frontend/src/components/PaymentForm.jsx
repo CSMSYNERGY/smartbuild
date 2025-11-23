@@ -51,7 +51,7 @@ export default function PaymentForm({
     }
 
     const existingScript = document.querySelector(
-      'script[data-collectjs="true"]'
+      'script#sb-collectjs'
     );
 
     const configureCollectJs = () => {
@@ -60,7 +60,7 @@ export default function PaymentForm({
       window.CollectJS.configure({
         // This is the BUTTON that triggers tokenization (as in docs)
         paymentSelector: "#sbPayButton",
-        variant: "custom",
+        variant: "inline",
         fields: {
           // Use ccnumber / ccexp / cvv keys like the NMI examples
           ccnumber: {
@@ -126,7 +126,7 @@ export default function PaymentForm({
     const script = document.createElement("script");
     script.src = COLLECT_JS_URL;
     script.async = true;
-    script.setAttribute("data-collectjs", "true");
+    script.id = "sb-collectjs"; 
     script.setAttribute("data-tokenization-key", TOKENIZATION_KEY);
 
     script.onload = () => {
