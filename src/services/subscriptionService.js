@@ -385,7 +385,7 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
   }
 
   // Make sure this is one of *your* plans (you already implemented this)
-  if (!isPlanValid(eventBody)) {
+  if (!isPlanValid(eventBody, PlansConfig.PLANS)) {
     logger.info(
       `Ignoring Deposyt webhook for non-app plan: ${eventBody?.plan?.id}`
     );
