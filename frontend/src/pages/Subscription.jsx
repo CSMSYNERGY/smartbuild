@@ -5,7 +5,6 @@ import {
   Card,
   Group,
   Loader,
-  Modal,
   Paper,
   Stack,
   Text,
@@ -22,7 +21,6 @@ import {
 } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
-import { useDisclosure } from "@mantine/hooks";
 import PaymentForm from "../components/PaymentForm";
 
 export default function Subscription() {
@@ -32,10 +30,8 @@ export default function Subscription() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [paymentModalOpened, { open: openPaymentModal, close: closePaymentModal }] =
-    useDisclosure(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [paymentAction, setPaymentAction] = useState("create"); // "create" or "update-payment"
+  const [paymentAction, setPaymentAction] = useState(null); // "create" or "update-payment" or null
 
   const status = entitlement?.status || "inactive";
   const subscriptionByThisUser = entitlement?.subscriptionByThisUser || false;
@@ -101,23 +97,21 @@ export default function Subscription() {
   };
 
   const handlePaymentSuccess = () => {
-    closePaymentModal();
     setSelectedPlan(null);
-    setPaymentAction("create");
+    setPaymentAction(null);
     // Refresh auth data to get updated entitlement
     if (refreshAuth) {
       refreshAuth();
     }
   };
 
-  const openCreatePaymentModal = () => {
-    setPaymentAction("create");
-    openPaymentModal();
+  const openUpdatePayment = () => {
+    setPaymentAction("update-payment");
   };
 
-  const openUpdatePaymentModal = () => {
-    setPaymentAction("update-payment");
-    openPaymentModal();
+  const handlePlanSelect = (plan) => {
+    setSelectedPlan(plan);
+    setPaymentAction("create");
   };
 
   const getStatusBadge = () => {
@@ -191,7 +185,7 @@ export default function Subscription() {
             color="blue"
             variant="light"
             leftSection={<IconCreditCard size="1rem" />}
-            onClick={openUpdatePaymentModal}
+            onClick={openUpdatePayment}
             loading={actionLoading}
           >
             Update Payment
@@ -237,7 +231,7 @@ export default function Subscription() {
                       ? "var(--mantine-color-indigo-6)"
                       : undefined,
                 }}
-                onClick={() => setSelectedPlan(plan)}
+                onClick={() => handlePlanSelect(plan)}
               >
                 <Group justify="space-between">
                   <div>
@@ -257,14 +251,6 @@ export default function Subscription() {
                 </Group>
               </Card>
             ))}
-            <Button
-              onClick={openCreatePaymentModal}
-              disabled={!selectedPlan}
-              loading={actionLoading}
-              fullWidth
-            >
-              Continue with Selected Plan
-            </Button>
           </Stack>
         ) : (
           <Text c="dimmed">No plans available</Text>
@@ -295,7 +281,7 @@ export default function Subscription() {
                 color="blue"
                 variant="light"
                 leftSection={<IconCreditCard size="1rem" />}
-                onClick={openUpdatePaymentModal}
+                onClick={openUpdatePayment}
                 loading={actionLoading}
               >
                 Update Payment (Resume)
@@ -306,7 +292,7 @@ export default function Subscription() {
               color="blue"
               variant="light"
               leftSection={<IconCreditCard size="1rem" />}
-              onClick={openUpdatePaymentModal}
+              onClick={openUpdatePayment}
               loading={actionLoading}
             >
               Update Payment (Resume)
@@ -407,39 +393,41 @@ export default function Subscription() {
       {renderInactiveActions()}
       {renderCancelledActions()}
 
-      <Modal
-        opened={paymentModalOpened}
-        onClose={closePaymentModal}
-        title={
-          paymentAction === "create"
-            ? "Create Subscription"
-            : "Update Payment Method"
-        }
-        size="lg"
-      >
-        <Stack gap="md">
-          {paymentAction === "create" && selectedPlan && (
-            <Alert color="blue" variant="light">
-              <Text size="sm">
-                Selected Plan: <strong>{selectedPlan.name}</strong> - $
-                {selectedPlan.amount}/{selectedPlan.currency} per month
-              </Text>
-            </Alert>
-          )}
+      {/* Show payment form when action is selected */}
+      {paymentAction && (
+        <Paper withBorder shadow="sm" radius="lg" p="lg">
+          <Stack gap="md">
+            <div>
+              <Title order={4}>
+                {paymentAction === "create"
+                  ? "Create Subscription"
+                  : "Update Payment Method"}
+              </Title>
+              {paymentAction === "create" && selectedPlan && (
+                <Text size="sm" c="dimmed" mt={4}>
+                  Selected Plan: <strong>{selectedPlan.name}</strong> - $
+                  {selectedPlan.amount} {selectedPlan.currency} per{" "}
+                  {selectedPlan.frequency || "month"}
+                </Text>
+              )}
+            </div>
 
-          <PaymentForm
-            user={user}
-            planId={selectedPlan?.id}
-            action={paymentAction}
-            onSuccess={handlePaymentSuccess}
-            buttonText={
-              paymentAction === "create"
-                ? "Start Subscription"
-                : "Update Payment Method"
-            }
-          />
-        </Stack>
-      </Modal>
+            <Divider />
+
+            <PaymentForm
+              user={user}
+              planId={selectedPlan?.id}
+              action={paymentAction}
+              onSuccess={handlePaymentSuccess}
+              buttonText={
+                paymentAction === "create"
+                  ? "Start Subscription"
+                  : "Update Payment Method"
+              }
+            />
+          </Stack>
+        </Paper>
+      )}
     </Stack>
   );
 }

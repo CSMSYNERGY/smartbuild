@@ -7,6 +7,7 @@ export const PlansConfig = {
       name: "Construction Platform Integrations Monthly Subscription",
       amount: 250,
       currency: "USD",
+      frequency: "month",
       description: "Construction Platform Integrations Monthly Subscription",
     },
   ],

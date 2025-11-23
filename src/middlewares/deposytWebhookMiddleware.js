@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { AppError, ErrorCodes } from "../models/errors.js";
-
+import logger from "../config/logger.js";
 export const verifyDeposytSigningKey = (req, res, next) => {
   try {
     // Header names are case-insensitive; Express normalizes them to lowercase internally
@@ -24,6 +24,8 @@ export const verifyDeposytSigningKey = (req, res, next) => {
         ErrorCodes.INTERNAL_SERVER_ERROR
       );
     }
+    logger.info("signingKey", signingKey);
+    logger.info("signatureHeader", signatureHeader);
 
     const receivedBuf = Buffer.from(signatureHeader, "utf8");
     const expectedBuf = Buffer.from(signingKey, "utf8");

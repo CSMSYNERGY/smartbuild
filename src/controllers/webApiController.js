@@ -30,20 +30,15 @@ export const getPlansController = async (req, res) => {
 };
 
 export const createSubscriptionController = async (req, res) => {
-  try {
-    const user = req.webUser;
-    const { paymentToken, planId } = req.body;
-    if (!paymentToken || !planId) {
-      return res
-        .status(400)
-        .json({ error: "Payment token and plan id are required" });
-    }
-    const result = await createSubscription(user, paymentToken, planId);
-    res.json(result);
-  } catch (error) {
-    logger.error("Error creating subscription", error);
-    res.status(500).json({ error: "Internal server error" });
+  const user = req.webUser;
+  const { paymentToken, planId } = req.body;
+  if (!paymentToken || !planId) {
+    return res
+      .status(400)
+      .json({ error: "Payment token and plan id are required" });
   }
+  const result = await createSubscription(user, paymentToken, planId);
+  res.json(result);
 };
 
 export const cancelSubscriptionController = async (req, res) => {

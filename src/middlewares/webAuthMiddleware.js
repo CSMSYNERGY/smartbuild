@@ -15,6 +15,20 @@ import jwt from "jsonwebtoken";
  * - APP_JWT_SECRET set in environment (.env / runtime).
  */
 export function requireWebSession(req, res, next) {
+  // Development mode: bypass authentication and use constant dev user
+  if (process.env.NODE_ENV === "development") {
+    req.webUser = {
+      id: "g0KMCSyiM9dxTYz2R5SZ",
+      email: "dev@vizio.ai",
+      companyId: "cal2iirJyFwWrTrtLXeW",
+      locationId: "9cxpdkrVWBUbPT3jtAYk",
+      userName: "Vizio Dev Team",
+      role: "admin",
+      type: "agency",
+    };
+    return next();
+  }
+
   try {
     const secret = process.env.APP_JWT_SECRET;
     if (!secret) {

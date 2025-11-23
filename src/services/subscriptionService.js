@@ -312,6 +312,10 @@ export const createSubscription = async (user, paymentToken, planId) => {
       ErrorCodes.BAD_REQUEST
     );
   }
+  
+  if(process.env.NODE_ENV === "development") {
+    logger.info(`Creating subscription, paymentToken: ${paymentToken} orderId`);
+  }
 
   const parsed = await createGatewaySubscription({
     amount,
@@ -322,13 +326,16 @@ export const createSubscription = async (user, paymentToken, planId) => {
     orderId: `sub-${user.locationId}-${planId}-${Date.now()}`,
   });
 
+  if(process.env.NODE_ENV === "development") {
+    logger.info(`Subscription request sent and parsed:`, parsed);
+  }
+
   const subscriptionId = parsed.subscription_id;
-  const customerVaultId = parsed.customer_vault_id;
   const orderId = parsed.orderid;
 
-  if (!subscriptionId || !customerVaultId) {
+  if (!subscriptionId) {
     throw new AppError(
-      "Subscription ID or customer vault ID is missing",
+      "Subscription ID is missing",
       400,
       ErrorCodes.BAD_REQUEST
     );
@@ -353,7 +360,6 @@ export const createSubscription = async (user, paymentToken, planId) => {
     id: subscriptionId,
     planId,
     status,
-    customerVaultId,
     entitlementId: user.locationId,
     orderId,
     createdAt: now,
@@ -364,7 +370,6 @@ export const createSubscription = async (user, paymentToken, planId) => {
     ok: true,
     subscriptionId,
     status,
-    customerVaultId,
     orderId,
   };
 };

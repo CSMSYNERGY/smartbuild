@@ -8,9 +8,13 @@ import { wrapAsync } from "./utils/globalUtils.js";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from "cookie-parser";
+import { initializeFirestore } from "./config/firestoreConfig.js";
 
+// Load environment variables first
 dotenv.config();
 
+// Initialize Firestore after environment variables are loaded
+initializeFirestore();
 
 const app = express();
 app.use(express.json());
