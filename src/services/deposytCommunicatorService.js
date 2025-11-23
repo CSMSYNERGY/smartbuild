@@ -165,7 +165,7 @@ export const updateGatewaySubscriptionPayment = async ({
 
   if (parsed.response !== "1") {
     throw new AppError(
-      parsed.responsetext || "Gateway did not approve payment update.",
+      paymentToken ? "Payment information is invalid. Please try again." : "Subscription update failed. Please try again.",
       400,
       ErrorCodes.BAD_REQUEST
     );
