@@ -4,6 +4,7 @@ import {
   createSubscription,
   cancelSubscription,
   resumeSubscription,
+  updatePayment,
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
 import logger from "../config/logger.js";
