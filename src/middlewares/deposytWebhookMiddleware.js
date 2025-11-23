@@ -24,8 +24,10 @@ export const verifyDeposytSigningKey = (req, res, next) => {
         ErrorCodes.INTERNAL_SERVER_ERROR
       );
     }
-    logger.info("signingKey", signingKey);
-    logger.info("signatureHeader", signatureHeader);
+    logger.info("Deposyt webhook signature verification", {
+      signingKey,
+      signatureHeader,
+    }); //remove in prod
 
     const receivedBuf = Buffer.from(signatureHeader, "utf8");
     const expectedBuf = Buffer.from(signingKey, "utf8");
