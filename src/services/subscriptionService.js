@@ -20,7 +20,6 @@ import {
   updateGatewaySubscriptionPayment,
   createGatewaySubscription,
   pauseGatewaySubscription,
-  getGatewaySubscriptionDetails,
 } from "./deposytCommunicatorService.js";
 
 export const getEntitlementDetails = async (webUser) => {
@@ -473,27 +472,34 @@ const handleSubscriptionAdded = async (eventBody) => {
     subscriptionEndDate,
     updatedAt: now,
   });
-
-  const gatewaySubscriptionDetails = await getGatewaySubscriptionDetails(
-    subscriptionId
-  );
-  if (!gatewaySubscriptionDetails) {
-    logger.warn(
-      `Webhook add for unknown subscription_id=${subscriptionId}, skipping entitlement update on add.`
-    );
-    return;
-  }
-
-  logger.info(
-    `Sub details retrieved from gateway for sub=${subscriptionId}`,
-    gatewaySubscriptionDetails
-  );
 };
 
 const handleSubscriptionUpdated = async (eventBody) => {
   const subscriptionId = eventBody.subscription_id;
   if (!subscriptionId) {
     logger.warn("subscription.update event missing subscription_id", eventBody);
+    return;
+  }
+
+  if (!eventBody.attempted_payments || !eventBody.completed_payments) {
+    logger.warn(
+      "subscription.update event missing attempted_payments or completed_payments",
+      eventBody
+    );
+    return;
+  }
+
+  const attemptedPayments = Number(eventBody.attempted_payments);
+  const completedPayments = Number(eventBody.completed_payments);
+
+  // Ensure they are valid numbers
+  if (
+    !Number.isFinite(attemptedPayments) ||
+    !Number.isFinite(completedPayments)
+  ) {
+    logger.warn(
+      `Subscription ${subscriptionId} has invalid payment counts (attempted: ${eventBody.attempted_payments}, completed: ${eventBody.completed_payments})`
+    );
     return;
   }
 
@@ -505,35 +511,30 @@ const handleSubscriptionUpdated = async (eventBody) => {
     logger.warn(
       `Webhook update for unknown subscription_id=${subscriptionId}, saving stub subscription`
     );
+    return;
   }
-  const gatewaySubscriptionDetails = await getGatewaySubscriptionDetails(
-    subscriptionId
-  );
-  if (!gatewaySubscriptionDetails) {
+  const entitlementId = existingSub?.entitlementId;
+  if (!entitlementId) {
     logger.warn(
-      `Webhook update for unknown subscription_id=${subscriptionId}, skipping entitlement update on update.`
+      `Subscription ${subscriptionId} has no entitlementId, skipping entitlement update on update.`
     );
     return;
   }
 
-  logger.info(
-    `Deposyt gateway subscription details for sub=${subscriptionId}`,
-    gatewaySubscriptionDetails
-  );
+  if (attemptedPayments > completedPayments) {
+    logger.warn(
+      `Subscription ${subscriptionId} has more attempted payments than completed payments, deleting subscription and entitlement.`
+    );
 
-  const entitlementId = existingSub?.entitlementId;
-  const planId = planIdFromGateway || existingSub?.planId;
+    await deleteSubscription(subscriptionId);
+    await deleteEntitlement(entitlementId);
+    return;
+  }
 
   const subscriptionEndDate = computeSubscriptionEndDate(
     eventBody,
     existingSub
   );
-
-  // If already cancelled in our DB, don't revive it here.
-  const status =
-    existingSub?.status && existingSub.status === "cancelled"
-      ? "cancelled"
-      : "active";
 
   //  derive payment details from webhook payload (masked only)
   const card = eventBody.card || {};
@@ -548,31 +549,13 @@ const handleSubscriptionUpdated = async (eventBody) => {
   };
 
   await saveSubscription(subscriptionId, {
-    id: subscriptionId,
-    planId,
-    status,
-    nextChargeDate: subscriptionEndDate,
     subscriptionEndDate,
-    gatewayPlanName: eventBody.plan?.name,
-    gatewayPlanAmount: eventBody.plan?.amount,
     paymentDetails,
-    createdAt: existingSub?.createdAt ?? now,
     updatedAt: now,
   });
 
-  if (!entitlementId) {
-    logger.warn(
-      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on update.`
-    );
-    return;
-  }
-
   // Entitlement status mirrors subscription, but we still bump subscriptionEndDate
   await saveEntitlement(entitlementId, {
-    id: entitlementId,
-    status,
-    subscriptionId,
-    planId,
     subscriptionEndDate,
     updatedAt: now,
   });

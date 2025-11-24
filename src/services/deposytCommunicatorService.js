@@ -165,7 +165,9 @@ export const updateGatewaySubscriptionPayment = async ({
 
   if (parsed.response !== "1") {
     throw new AppError(
-      paymentToken ? "Payment information is invalid. Please try again." : "Subscription update failed. Please try again.",
+      paymentToken
+        ? "Payment information is invalid. Please try again."
+        : "Subscription update failed. Please try again.",
       400,
       ErrorCodes.BAD_REQUEST
     );
@@ -201,6 +203,7 @@ export const getGatewaySubscriptionDetails = async (subscriptionId) => {
   // Build query payload – using query.php
   const payload = new URLSearchParams();
   payload.append("security_key", securityKey);
+  payload.append("report_type", "recurring");
 
   // Filter by subscription_id (adjust if your integration uses another filter)
   payload.append("subscription_id", subscriptionId);
@@ -219,8 +222,7 @@ export const getGatewaySubscriptionDetails = async (subscriptionId) => {
     throw new AppError(
       "Failed to query Deposyt subscription details",
       502,
-      ErrorCodes.BAD_GATEWAY,
-      { cause: err }
+      ErrorCodes.BAD_GATEWAY
     );
   }
 
