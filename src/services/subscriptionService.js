@@ -413,11 +413,17 @@ const handleSubscriptionAdded = async (eventBody) => {
     return;
   }
 
+  const orderId = eventBody.order_id;
+  if (!orderId) {
+    logger.warn("subscription.add event missing order_id", eventBody);
+    return;
+  }
+
   const { locationId: locationIdFromOrderId, planId: planIdFromOrderId } =
-    parseOrderId(eventBody.orderid);
+    parseOrderId(orderId);
   if (!locationIdFromOrderId) {
     logger.warn(
-      `subscription.add event missing locationId. orderid: ${eventBody.orderid}`
+      `subscription.add event missing locationId. orderid: ${orderId}`
     );
     return;
   }
@@ -449,7 +455,7 @@ const handleSubscriptionAdded = async (eventBody) => {
     status: "active",
     nextChargeDate: subscriptionEndDate,
     subscriptionEndDate,
-    orderId: eventBody.orderid,
+    orderId,
     entitlementId,
     paymentDetails,
     gatewayPlanName: eventBody.plan?.name,
@@ -511,7 +517,7 @@ const handleSubscriptionUpdated = async (eventBody) => {
   }
 
   logger.info(
-    `Deposyt updated webhook received for sub=${subscriptionId}`,
+    `Deposyt gateway subscription details for sub=${subscriptionId}`,
     gatewaySubscriptionDetails
   );
 
@@ -579,41 +585,8 @@ const handleSubscriptionDeleted = async (eventBody) => {
     return;
   }
 
-  const now = Date.now();
-
   const existingSub = await getSubscription(subscriptionId);
-  if (!existingSub) {
-    logger.warn(
-      `Webhook delete for unknown subscription_id=${subscriptionId}, proceeding with entitlement cleanup if possible`,
-      eventBody
-    );
+  if (existingSub) {
+    await deleteSubscription(subscriptionId);
   }
-
-  const entitlementId = existingSub?.entitlementId;
-
-  // If Deposyt sends next_charge_date here, we treat it as the period end.
-  // Otherwise we fall back to whatever we already had.
-  const subscriptionEndDate = computeSubscriptionEndDate(
-    eventBody,
-    existingSub
-  );
-
-  // Hard-delete subscription document; we don't need it anymore.
-  await deleteSubscription(subscriptionId);
-
-  if (!entitlementId) {
-    logger.warn(
-      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on delete.`
-    );
-    return;
-  }
-
-  // Entitlement: cancelled, but still valid until subscriptionEndDate.
-  await saveEntitlement(entitlementId, {
-    id: entitlementId,
-    status: "cancelled",
-    subscriptionId, // keep link for UI/debug even though sub doc is gone
-    subscriptionEndDate,
-    updatedAt: now,
-  });
 };
