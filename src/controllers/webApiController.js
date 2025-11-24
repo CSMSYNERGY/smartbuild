@@ -8,7 +8,10 @@ import {
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
 import logger from "../config/logger.js";
-
+import {
+  checkLocationAuthorization,
+  authenticateSmartbuild,
+} from "../services/authService.js";
 export const getWebUserController = async (req, res) => {
   try {
     const user = req.webUser;
@@ -74,4 +77,28 @@ export const updatePaymentController = async (req, res) => {
     logger.error("Error updating payment", error);
     res.status(500).json({ error: "Internal server error" });
   }
+};
+
+export const checkLocationAuthorizationController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const result = await checkLocationAuthorization(locationId);
+  res.status(200).json({ authorized: result });
+};
+
+export const authenticateSmartbuildController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const { smartbuildUserId, smartbuildUserPassword } = req.body;
+  if (!smartbuildUserId || !smartbuildUserPassword) {
+    return res
+      .status(400)
+      .json({ error: "Smartbuild user id and password are required" });
+  }
+  await authenticateSmartbuild(
+    locationId,
+    smartbuildUserId,
+    smartbuildUserPassword
+  );
+  res.status(200).json({
+    ok: true,
+  });
 };
