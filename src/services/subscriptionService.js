@@ -12,6 +12,7 @@ import { ErrorCodes } from "../models/errors.js";
 import {
   computeSubscriptionEndDate,
   isPlanValid,
+  parseOrderId,
 } from "../utils/paymentUtils.js";
 import logger from "../config/logger.js";
 import { AppError } from "../models/errors.js";
@@ -310,8 +311,8 @@ export const createSubscription = async (user, paymentToken, planId) => {
       ErrorCodes.BAD_REQUEST
     );
   }
-  
-  if(process.env.NODE_ENV === "development") {
+
+  if (process.env.NODE_ENV === "development") {
     logger.info(`Creating subscription, paymentToken: ${paymentToken} orderId`);
   }
 
@@ -324,7 +325,7 @@ export const createSubscription = async (user, paymentToken, planId) => {
     orderId: `sub-${user.locationId}-${planId}-${Date.now()}`,
   });
 
-  if(process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV === "development") {
     logger.info(`Subscription request sent and parsed:`, parsed);
   }
 
@@ -351,17 +352,6 @@ export const createSubscription = async (user, paymentToken, planId) => {
     planId,
     updatedAt: now,
     createdAt: now,
-  });
-
-  // 2) Subscription collection keyed by subscriptionId
-  await saveSubscription(subscriptionId, {
-    id: subscriptionId,
-    planId,
-    status,
-    entitlementId: user.locationId,
-    orderId,
-    createdAt: now,
-    updatedAt: now,
   });
 
   return {
@@ -392,6 +382,11 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
     return;
   }
 
+  logger.info(
+    `Deposyt webhook received for eventType: ${eventType}`,
+    eventBody
+  );
+
   switch (eventType) {
     case "recurring.subscription.delete":
       await handleSubscriptionDeleted(eventBody);
@@ -418,23 +413,22 @@ const handleSubscriptionAdded = async (eventBody) => {
     return;
   }
 
+  const { locationId: locationIdFromOrderId, planId: planIdFromOrderId } =
+    parseOrderId(eventBody.orderid);
+  if (!locationIdFromOrderId) {
+    logger.warn(
+      `subscription.add event missing locationId. orderid: ${eventBody.orderid}`
+    );
+    return;
+  }
+
   const planIdFromGateway = eventBody.plan?.id || null;
   const now = Date.now();
 
-  const existingSub = await getSubscription(subscriptionId);
-  if (!existingSub) {
-    logger.warn(
-      `Webhook add for unknown subscription_id=${subscriptionId}, saving stub subscription`
-    );
-  }
+  const entitlementId = locationIdFromOrderId; // locationId from createSubscription
+  const planId = planIdFromGateway || planIdFromOrderId;
 
-  const entitlementId = existingSub?.entitlementId; // locationId from createSubscription
-  const planId = planIdFromGateway || existingSub?.planId;
-
-  const subscriptionEndDate = computeSubscriptionEndDate(
-    eventBody,
-    existingSub
-  );
+  const subscriptionEndDate = computeSubscriptionEndDate(eventBody, null);
 
   //  derive payment details from webhook payload (masked only)
   const card = eventBody.card || {};
@@ -455,19 +449,24 @@ const handleSubscriptionAdded = async (eventBody) => {
     status: "active",
     nextChargeDate: subscriptionEndDate,
     subscriptionEndDate,
+    orderId: eventBody.orderid,
+    entitlementId,
     paymentDetails,
     gatewayPlanName: eventBody.plan?.name,
     gatewayPlanAmount: eventBody.plan?.amount,
-    createdAt: existingSub?.createdAt ?? now,
+    createdAt: now,
     updatedAt: now,
   });
 
-  if (!entitlementId) {
-    logger.warn(
-      `Subscription ${subscriptionId} has no entitlementId; skipping entitlement update on add.`
-    );
-    return;
-  }
+  // Entitlement: active, and now has subscriptionEndDate = next_charge_date
+  await saveEntitlement(entitlementId, {
+    id: entitlementId,
+    status: "active",
+    subscriptionId,
+    planId,
+    subscriptionEndDate,
+    updatedAt: now,
+  });
 
   const gatewaySubscriptionDetails = await getGatewaySubscriptionDetails(
     subscriptionId
@@ -480,19 +479,9 @@ const handleSubscriptionAdded = async (eventBody) => {
   }
 
   logger.info(
-    `Deposyt add webhook received for sub=${subscriptionId}`,
+    `Sub details retrieved from gateway for sub=${subscriptionId}`,
     gatewaySubscriptionDetails
   );
-
-  // Entitlement: active, and now has subscriptionEndDate = next_charge_date
-  await saveEntitlement(entitlementId, {
-    id: entitlementId,
-    status: "active",
-    subscriptionId,
-    planId,
-    subscriptionEndDate,
-    updatedAt: now,
-  });
 };
 
 const handleSubscriptionUpdated = async (eventBody) => {

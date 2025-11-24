@@ -26,7 +26,19 @@ export const computeSubscriptionEndDate = (eventBody, existingSub) => {
 export const isPlanValid = (eventBody, plans) => {
   const planId = eventBody?.plan?.id;
 
-  return planId
-    ? plans.find((plan) => plan.id === planId) != null
-    : false;
+  return planId ? plans.find((plan) => plan.id === planId) != null : false;
+};
+
+export const parseOrderId = (orderId) => {
+  if (!orderId || typeof orderId !== "string") return null;
+  if (!orderId.startsWith("sub-")) return null;
+
+  const parts = orderId.split("-");
+  // "sub-<locationId>-<planId>-<timestamp...>"
+  if (parts.length < 3) return null;
+
+  const locationId = parts[1];
+  const planId = parts[2];
+
+  return { locationId, planId };
 };
