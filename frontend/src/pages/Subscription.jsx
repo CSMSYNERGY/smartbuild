@@ -21,7 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
-import PaymentForm from "../components/PaymentForm";
+import PaymentForm from "../components/payment-form/PaymentForm";
 
 export default function Subscription() {
   const { user, entitlement, refreshAuth } = useAuth();

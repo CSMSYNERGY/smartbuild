@@ -12,6 +12,7 @@ import {
 import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { Link } from "react-router-dom";
+import ReauthorizeLocation from "../components/authorize-location/ReauthorizeLocation";
 
 export default function Home() {
   const { user, entitlement } = useAuth();
@@ -27,6 +28,8 @@ export default function Home() {
           dashboard.
         </Text>
       </Stack>
+
+      <ReauthorizeLocation />
 
       {!isSubscribed && (
         <Alert

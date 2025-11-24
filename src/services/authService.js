@@ -117,9 +117,9 @@ export const getAccessTokenFromRefreshToken = async (refreshToken) => {
   } catch (error) {
     logger.error("Error refreshing access token", error.response?.data);
     throw new AppError(
-      "Error refreshing access token.",
-      500,
-      ErrorCodes.INTERNAL_SERVER_ERROR
+      "Error authorizing your location. Please re-initiate location authorization from app configuration tab.",
+      401,
+      ErrorCodes.UNAUTHORIZED
     );
   }
 };
@@ -144,14 +144,7 @@ export const getAuthenticatedLocation = async (locationId) => {
       const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
         locationData.refreshToken
       );
-      const entitlement = await getEntitlementDetailsForLocation(locationId);
-      if (entitlement.status !== "active") {
-        throw new AppError(
-          `Location ${locationId} is not subscribed to any plan`,
-          401,
-          ErrorCodes.UNAUTHORIZED
-        );
-      }
+
       // Save updated authentication data
       await saveLocationData(locationId, newAuthData);
 
@@ -226,4 +219,9 @@ export const getAuthenticatedSmartbuild = async (locationId) => {
           ErrorCodes.INTERNAL_SERVER_ERROR
         );
   }
+};
+
+export const checkLocationAuthorization = async (locationId) => {
+  const locationData = await getAuthenticatedLocation(locationId);
+  return locationData ? true : false;
 };
