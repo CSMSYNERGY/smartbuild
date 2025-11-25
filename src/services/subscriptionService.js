@@ -207,11 +207,6 @@ export const cancelSubscription = async (user) => {
       ErrorCodes.BAD_REQUEST
     );
   }
-
-  await pauseGatewaySubscription(subscriptionId, true);
-
-  const now = Date.now();
-
   await saveEntitlement(user.locationId, {
     status: "pending-cancel",
     updatedAt: now,
@@ -221,6 +216,9 @@ export const cancelSubscription = async (user) => {
     status: "pending-cancel",
     updatedAt: now,
   });
+  await pauseGatewaySubscription(subscriptionId, true);
+
+  const now = Date.now();
 
   return { ok: true, status: "pending-cancel" };
 };
@@ -229,54 +227,18 @@ export const updatePayment = async (user, paymentToken) => {
   // Get entitlement
   const entitlement = await getEntitlement(user.locationId);
 
-  const subscriptionId = entitlement.subscriptionId;
+  const subscriptionId = entitlement?.subscriptionId || null;
 
   const subscription = await getSubscription(subscriptionId);
 
-  if (!subscription) {
-    throw new AppError(
-      "Subscription record not found",
-      404,
-      ErrorCodes.NOT_FOUND
-    );
+  if (!subscriptionId || !subscription) {
+    throw new AppError("Subscription not found", 404, ErrorCodes.NOT_FOUND);
   }
 
   await updateGatewaySubscriptionPayment({
     subscriptionId,
     paymentToken,
     paused: false,
-  });
-
-  await saveEntitlement(user.locationId, {
-    status: "pending-update-payment",
-    updatedAt: Date.now(),
-  });
-
-  return { ok: true };
-};
-
-export const resumeSubscription = async (user) => {
-  // Get entitlement
-  const { subscriptionId, subscriptionByThisUser, status } =
-    await getEntitlementDetails(user);
-
-  if (status === "active") {
-    throw new AppError(
-      "Subscription is already active",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
-
-  await updateGatewaySubscriptionPayment({
-    subscriptionId,
-    paymentToken: null,
-    paused: false,
-  });
-
-  await saveEntitlement(user.locationId, {
-    status: "pending-resume",
-    updatedAt: Date.now(),
   });
 
   return { ok: true };
@@ -481,7 +443,10 @@ const handleSubscriptionUpdated = async (eventBody) => {
     return;
   }
 
-  if (!eventBody.attempted_payments || !eventBody.completed_payments) {
+  if (
+    eventBody.attempted_payments == null ||
+    eventBody.completed_payments == null
+  ) {
     logger.warn(
       "subscription.update event missing attempted_payments or completed_payments",
       eventBody
@@ -503,7 +468,6 @@ const handleSubscriptionUpdated = async (eventBody) => {
     return;
   }
 
-  const planIdFromGateway = eventBody.plan?.id || null;
   const now = Date.now();
 
   const existingSub = await getSubscription(subscriptionId);

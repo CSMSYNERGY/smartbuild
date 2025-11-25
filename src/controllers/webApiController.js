@@ -3,7 +3,6 @@ import {
   getEntitlementDetails,
   createSubscription,
   cancelSubscription,
-  resumeSubscription,
   updatePayment,
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
@@ -52,17 +51,6 @@ export const cancelSubscriptionController = async (req, res) => {
     res.json(result);
   } catch (error) {
     logger.error("Error canceling subscription", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-export const resumeSubscriptionController = async (req, res) => {
-  try {
-    const user = req.webUser;
-    const result = await resumeSubscription(user);
-    res.json(result);
-  } catch (error) {
-    logger.error("Error resuming subscription", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
