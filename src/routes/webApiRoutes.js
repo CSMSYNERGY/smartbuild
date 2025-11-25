@@ -5,7 +5,6 @@ import {
   getPlansController,
   createSubscriptionController,
   cancelSubscriptionController,
-  resumeSubscriptionController,
   updatePaymentController,
   checkLocationAuthorizationController,
   authenticateSmartbuildController,
@@ -24,6 +23,5 @@ router.post(
 );
 router.post("/subscription/create", createSubscriptionController);
 router.post("/subscription/cancel", cancelSubscriptionController);
-router.post("/subscription/resume", resumeSubscriptionController);
 router.post("/subscription/update-payment", updatePaymentController);
 export default router;
