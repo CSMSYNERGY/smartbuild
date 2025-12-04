@@ -140,15 +140,18 @@ export const getAuthenticatedLocation = async (locationId) => {
         `Access token expired for location ${locationId}. Refreshing...`
       );
 
-      // Get new access token
-      const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
-        locationData.refreshToken
-      );
-
-      // Save updated authentication data
-      await saveLocationData(locationId, newAuthData);
-
-      return newAuthData;
+      try {
+        const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
+          locationData.refreshToken
+        );
+        await saveLocationData(locationId, newAuthData);
+        return newAuthData;
+      } catch (error) {
+        logger.info(
+          `Error refreshing access token for location ${locationId}. Trying to retrieve authorization code from GHL...`
+        );
+        return await retryLocationAuthorization(locationId);
+      }
     }
 
     // Return existing auth data if not expired
@@ -158,6 +161,61 @@ export const getAuthenticatedLocation = async (locationId) => {
       ? error
       : new AppError(
           `Error getting authenticated location: ${error.message}`,
+          500,
+          ErrorCodes.INTERNAL_SERVER_ERROR
+        );
+  }
+};
+
+export const retryLocationAuthorization = async (locationId) => {
+  const body = {
+    locationId: locationId,
+    clientKey: process.env.GHL_CLIENT_ID,
+    clientSecret: process.env.GHL_CLIENT_SECRET,
+  };
+
+  try {
+    const response = await axios.post(
+      `${process.env.GHL_BASE_URL}/oauth/reconnect`,
+      body,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.status !== 200) {
+      throw new Error(
+        `Retry location authorization failed with status ${response.status}`
+      );
+    }
+    
+    const { authorizationCode } = response.data;
+    if (!authorizationCode) {
+      throw new Error(
+        "No authorizationCode received from reconnect endpoint"
+      );
+    }
+
+    // Get full auth data and save it
+    const authData = await getAccessTokenFromAuthCode(authorizationCode);
+    const { locationId: returnedLocationId, ...locationData } = authData;
+    
+    // Verify the locationId matches what we expect
+    if (returnedLocationId !== locationId) {
+      logger.warn(
+        `Location ID mismatch during retry: expected ${locationId}, got ${returnedLocationId}`
+      );
+    }
+    
+    await saveLocationData(locationId, locationData);
+    return locationData;
+  } catch (error) {
+    logger.error(`Error retrying location authorization for ${locationId}:`, error.response?.data || error.message);
+    throw error instanceof AppError
+      ? error
+      : new AppError(
+          `Error retrying location authorization: ${error.message}`,
           500,
           ErrorCodes.INTERNAL_SERVER_ERROR
         );
