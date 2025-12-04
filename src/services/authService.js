@@ -139,19 +139,11 @@ export const getAuthenticatedLocation = async (locationId) => {
       logger.info(
         `Access token expired for location ${locationId}. Refreshing...`
       );
-
-      try {
-        const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
-          locationData.refreshToken
-        );
-        await saveLocationData(locationId, newAuthData);
-        return newAuthData;
-      } catch (error) {
-        logger.info(
-          `Error refreshing access token for location ${locationId}. Trying to retrieve authorization code from GHL...`
-        );
-        return await retryLocationAuthorization(locationId);
-      }
+      const { planId, ...newAuthData } = await getAccessTokenFromRefreshToken(
+        locationData.refreshToken
+      );
+      await saveLocationData(locationId, newAuthData);
+      return newAuthData;
     }
 
     // Return existing auth data if not expired
@@ -174,8 +166,6 @@ export const retryLocationAuthorization = async (locationId) => {
     clientSecret: process.env.GHL_CLIENT_SECRET,
   };
 
-  logger.info('for now: ', body);
-
   try {
     const response = await axios.post(
       `${process.env.GHL_BASE_URL}/oauth/reconnect`,
@@ -191,29 +181,30 @@ export const retryLocationAuthorization = async (locationId) => {
         `Retry location authorization failed with status ${response.status}`
       );
     }
-    
+
     const { authorizationCode } = response.data;
     if (!authorizationCode) {
-      throw new Error(
-        "No authorizationCode received from reconnect endpoint"
-      );
+      throw new Error("No authorizationCode received from reconnect endpoint");
     }
 
     // Get full auth data and save it
     const authData = await getAccessTokenFromAuthCode(authorizationCode);
     const { locationId: returnedLocationId, ...locationData } = authData;
-    
+
     // Verify the locationId matches what we expect
     if (returnedLocationId !== locationId) {
       logger.warn(
         `Location ID mismatch during retry: expected ${locationId}, got ${returnedLocationId}`
       );
     }
-    
+
     await saveLocationData(locationId, locationData);
     return locationData;
   } catch (error) {
-    logger.error(`Error retrying location authorization for ${locationId}:`, error.response?.data || error.message);
+    logger.error(
+      `Error retrying location authorization for ${locationId}:`,
+      error.response?.data || error.message
+    );
     throw error instanceof AppError
       ? error
       : new AppError(
