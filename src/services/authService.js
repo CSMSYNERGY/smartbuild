@@ -174,6 +174,8 @@ export const retryLocationAuthorization = async (locationId) => {
     clientSecret: process.env.GHL_CLIENT_SECRET,
   };
 
+  logger.info('for now: ', body);
+
   try {
     const response = await axios.post(
       `${process.env.GHL_BASE_URL}/oauth/reconnect`,
