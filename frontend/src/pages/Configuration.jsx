@@ -6,7 +6,7 @@ export default function Configuration() {
       <Stack gap={4}>
         <Title order={2}>Configuration</Title>
         <Text c="dimmed">
-          Configure your SmartBuild integration settings and preferences.
+          Configure your integration settings and preferences.
         </Text>
       </Stack>
 

@@ -24,7 +24,7 @@ export default function Home() {
       <Stack gap={4}>
         <Title order={2}>Welcome, {user?.userName || "User"}!</Title>
         <Text c="dimmed">
-          Manage your SmartBuild integrations and subscriptions from this
+          Manage your integrations and subscriptions from this
           dashboard.
         </Text>
       </Stack>
@@ -70,11 +70,11 @@ export default function Home() {
 
       <Paper withBorder shadow="sm" radius="lg" p="lg">
         <Stack gap="md">
-          <Title order={3}>About SmartBuild</Title>
+          <Title order={3}>About Construction Platform Integrations</Title>
           <Text>
-            SmartBuild is a powerful integration platform that connects your
-            GoHighLevel account with various construction and project management
-            tools. Streamline your workflow and automate your business processes
+            Construction Platform Integrations is a powerful integration platform that connects your
+            account with various construction and project management
+            tools, including SmartBuild. Streamline your workflow and automate your business processes
             with our comprehensive suite of integrations.
           </Text>
 
@@ -85,7 +85,7 @@ export default function Home() {
                   Seamless Integration
                 </Text>
                 <Text size="sm" c="dimmed">
-                  Connect your GoHighLevel account with ease and start
+                  Connect your account with ease and start
                   automating workflows in minutes.
                 </Text>
               </Stack>

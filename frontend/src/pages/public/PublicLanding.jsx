@@ -6,7 +6,7 @@ const PUBLIC_VIEWS = {
   location_auth_success: {
     component: (
       <PublicSuccess
-        successTitle="Location Authentication Successful"
+        successTitle="Authentication Successful"
         successMessage="You can now close this window."
       />
     ),
@@ -14,8 +14,8 @@ const PUBLIC_VIEWS = {
   location_auth_error: {
     component: (
       <PublicError
-        errorTitle="Location Authentication Failed"
-        errorMessage="The location authentication failed. Please try again."
+        errorTitle="Authentication Failed"
+        errorMessage="The authentication failed. Please try again."
         errorCode="401"
       />
     ),

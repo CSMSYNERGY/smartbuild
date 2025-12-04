@@ -49,14 +49,14 @@ export default function ReauthorizeLocation() {
   return (
     <Alert
       icon={<IconAlertCircle size={16} />}
-      title="Location Authorization Required"
+      title="Authorization Required"
       color="orange"
       variant="light"
       mb="md"
     >
       <Text size="sm" mb="sm">
-        Your location needs to be reauthorized to continue using SmartBuild
-        integrations. Please authorize your location to proceed.
+        Your account needs to be reauthorized to continue using
+        integrations. Please authorize your account to proceed.
       </Text>
       {error && (
         <Text size="xs" c="red" mb="sm">
@@ -71,7 +71,7 @@ export default function ReauthorizeLocation() {
           leftSection={<IconExternalLink size={14} />}
           onClick={handleReauthorize}
         >
-          Authorize Location
+          Authorize Account
         </Button>
         <Button
           size="xs"
