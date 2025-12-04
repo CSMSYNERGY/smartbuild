@@ -7,7 +7,7 @@ export default function LoadingScreen() {
         <Stack align="center" gap="sm">
           <Loader color="indigo" size="lg" />
           <Text size="sm" c="dimmed" ta="center" maw={260}>
-            Please wait while we verify your GoHighLevel session.
+            Please wait while we verify your session.
           </Text>
         </Stack>
       </Paper>

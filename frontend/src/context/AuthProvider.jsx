@@ -36,11 +36,11 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // 2) No session: if inside iframe (GHL), try SSO handshake
+      // 2) No session: if inside iframe, try SSO handshake
       const isFramed = window.self !== window.top;
 
       if (!isFramed) {
-        throw new Error("Please use the 'Advanced Configuration' tab from GoHighLevel Marketplace to authenticate.");
+        throw new Error("Please use the 'Advanced Configuration' tab from the Marketplace to authenticate.");
       }
 
       await getUserData();

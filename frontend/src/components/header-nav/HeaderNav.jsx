@@ -31,7 +31,7 @@ export default function HeaderNav() {
       style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
     >
       <Title order={4} fw={700}>
-        SmartBuild Integrations
+        Construction Platform Integrations
       </Title>
       <Group gap="md" align="center">
         {links.map((link) => {
