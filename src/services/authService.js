@@ -3,19 +3,11 @@ import logger from "../config/logger.js";
 import { isTokenExpired } from "../utils/authUtils.js";
 import {
   deleteLocationData,
-  deleteSmartbuildAuthData,
   getLocationData,
-  getSmartbuildAuthData,
   saveLocationData,
-  saveSmartbuildAuthData,
 } from "./firestoreService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { Timestamp } from "@google-cloud/firestore";
-import {
-  getSmartbuildToken,
-  getSmartbuildTokenFromRefreshToken,
-} from "./smartbuildService.js";
-import { getEntitlementDetailsForLocation } from "./subscriptionService.js";
 
 export const authenticateAndSaveUser = async (code) => {
   try {
@@ -209,63 +201,6 @@ export const retryLocationAuthorization = async (locationId) => {
       ? error
       : new AppError(
           `Error retrying location authorization: ${error.message}`,
-          500,
-          ErrorCodes.INTERNAL_SERVER_ERROR
-        );
-  }
-};
-
-export const authenticateSmartbuild = async (
-  locationId,
-  smartbuildUserId,
-  smartbuildUserPassword
-) => {
-  try {
-    const smartbuildAuthData = await getSmartbuildToken(
-      smartbuildUserId,
-      smartbuildUserPassword
-    );
-    await saveSmartbuildAuthData(locationId, {
-      ...smartbuildAuthData,
-      smartbuildUserId: smartbuildUserId,
-    });
-  } catch (error) {
-    throw error instanceof AppError
-      ? error
-      : new AppError(
-          `Error getting authenticating smartbuild for location: ${error.message}`,
-          500,
-          ErrorCodes.INTERNAL_SERVER_ERROR
-        );
-  }
-};
-
-export const getAuthenticatedSmartbuild = async (locationId) => {
-  try {
-    const smartbuildAuthData = await getSmartbuildAuthData(locationId);
-    if (!smartbuildAuthData) {
-      throw new AppError(
-        `Smartbuild auth data not found for location ${locationId}`,
-        404,
-        ErrorCodes.SMARTBUILD_AUTH_DATA_NOT_FOUND
-      );
-    }
-    if (isTokenExpired(smartbuildAuthData.expires)) {
-      logger.info(
-        `Smartbuild token expired for location ${locationId}. Refreshing...`
-      );
-      const newSmartbuildAuthData = await getSmartbuildTokenFromRefreshToken(
-        smartbuildAuthData.refreshToken
-      );
-      await saveSmartbuildAuthData(locationId, newSmartbuildAuthData);
-      return newSmartbuildAuthData;
-    }
-    return smartbuildAuthData;
-  } catch (error) {
-    throw error instanceof AppError
-      ? error
-      : new AppError(
-          `Error getting authenticated smartbuild for location: ${error.message}`,
           500,
           ErrorCodes.INTERNAL_SERVER_ERROR
         );

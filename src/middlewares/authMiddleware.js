@@ -1,6 +1,8 @@
 import { GHL_WEBHOOK_PUBLIC_KEY } from "../constants/authConstants.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import crypto from "crypto";
+import { isLocationSubscriptionActive } from "../services/subscriptionService.js";
+import { getLocationIdFromRequest } from "../utils/authUtils.js";
 
 export const verifyWebhook = (req, res, next) => {
   try {
@@ -63,6 +65,28 @@ export const verifyAPIKey = (req, res, next) => {
 
     next();
   } catch (error) {
+    next(error);
+  }
+};
+
+
+export const checkLocationSubscribed = async (req, res, next) => {
+  try {
+    const locationId = getLocationIdFromRequest(req);
+    const isSubscribed = await isLocationSubscriptionActive(locationId);
+    
+    if (!isSubscribed) {
+      throw new AppError(
+        "Unauthorized: Location not subscribed",
+        401,
+        ErrorCodes.UNAUTHORIZED
+      );
+    }
+
+    next();
+  } catch (error) {
+    // Pass through AppError (e.g., from getLocationIdFromRequest or our own)
+    // Other errors will be caught by error handler as 500
     next(error);
   }
 };

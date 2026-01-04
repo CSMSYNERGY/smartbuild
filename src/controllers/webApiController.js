@@ -7,10 +7,18 @@ import {
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
 import logger from "../config/logger.js";
+import { checkLocationAuthorization } from "../services/authService.js";
 import {
-  checkLocationAuthorization,
   authenticateSmartbuild,
-} from "../services/authService.js";
+  getSmartbuildAuthentication,
+} from "../services/smartbuildService.js";
+import {
+  getMappersForLocation,
+  getMapperForLocation,
+  createMapperForLocation,
+  updateMapperForLocation,
+  deleteMapperForLocation,
+} from "../services/mappersService.js";
 export const getWebUserController = async (req, res) => {
   try {
     const user = req.webUser;
@@ -89,4 +97,61 @@ export const authenticateSmartbuildController = async (req, res) => {
   res.status(200).json({
     ok: true,
   });
+};
+
+export const getSmartbuildConfigurationnController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  let authData = null;
+  try {
+    authData = await getSmartbuildAuthentication(locationId);
+  } catch (error) {
+    logger.warn(
+      `SmartBuild auth for location unavailable: ${locationId}`,
+      error
+    );
+  }
+  res.status(200).json({
+    connected: authData != null,
+    smartbuildUserId: authData?.smartbuildUserId,
+  });
+};
+
+export const getMappersController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mappers = await getMappersForLocation(locationId);
+  res.status(200).json(mappers);
+};
+
+export const getMapperController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mapperId = req.params.mapperId;
+  const mapper = await getMapperForLocation(locationId, mapperId);
+  res.status(200).json(mapper);
+};
+
+export const createMapperController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const { name, type } = req.body;
+  const mapperId = await createMapperForLocation(locationId, name, type);
+  res.status(200).json({ id: mapperId });
+};
+
+export const updateMapperController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mapperId = req.params.mapperId;
+  const { name, type } = req.body;
+  const mapper = await updateMapperForLocation(
+    locationId,
+    mapperId,
+    name,
+    type
+  );
+  res.status(200).json(mapper);
+};
+
+export const deleteMapperController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mapperId = req.params.mapperId;
+  await deleteMapperForLocation(locationId, mapperId);
+  res.status(200).json({ ok: true });
 };

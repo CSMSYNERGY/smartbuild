@@ -112,6 +112,46 @@ export const getEntitlement = async (locationId) => {
   }
 };
 
+export const getMapperItems = async (locationId) => {
+  try {
+    const snap = await db
+      .collection("mappers")
+      .doc(locationId)
+      .collection("items")
+      .get();
+
+    if (snap.empty) return [];
+
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    throw new AppError(
+      "Database read failed: " + error.message,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const getMapperItem = async (locationId, mapperId) => {
+  try {
+    const doc = await db
+      .collection("mappers")
+      .doc(locationId)
+      .collection("items")
+      .doc(mapperId)
+      .get();
+
+    if (!doc.exists) return null;
+    return doc.data();
+  } catch (error) {
+    throw new AppError(
+      "Database read failed: " + error.message,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
 //cant we make these return the existing value ?
 export const saveEntitlement = async (locationId, entitlement) => {
   try {
@@ -143,6 +183,23 @@ export const saveSubscription = async (subscriptionId, subscription) => {
   }
 };
 
+export const saveMapperItem = async (locationId, mapperId, item) => {
+  try {
+    await db
+      .collection("mappers")
+      .doc(locationId)
+      .collection("items")
+      .doc(mapperId)
+      .set(item, { merge: true });
+  } catch (error) {
+    throw new AppError(
+      "Database save failed: " + error.message,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
 export const deleteEntitlement = async (locationId) => {
   try {
     await db.collection("entitlements").doc(locationId).delete();
@@ -161,6 +218,39 @@ export const deleteSubscription = async (subscriptionId) => {
   } catch (error) {
     throw new AppError(
       "Database delete failed: " + error.message,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const deleteMapperItem = async (locationId, mapperId) => {
+  try {
+    await db
+      .collection("mappers")
+      .doc(locationId)
+      .collection("items")
+      .doc(mapperId)
+      .delete();
+  } catch (error) {
+    throw new AppError(
+      "Database delete failed: " + error.message,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const createMapperItem = async (locationId, mapperItem) => {
+  try {
+    const colRef = db.collection("mappers").doc(locationId).collection("items");
+
+    const docRef = await colRef.add(mapperItem); // auto ID
+
+    return { id: docRef.id };
+  } catch (error) {
+    throw new AppError(
+      "Database save failed: " + error.message,
       500,
       ErrorCodes.INTERNAL_SERVER_ERROR
     );

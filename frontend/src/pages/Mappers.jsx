@@ -1,18 +1,18 @@
 import { Paper, Stack, Text, Title } from "@mantine/core";
 
-export default function Configuration() {
+export default function Mappers() {
   return (
     <Stack gap="lg">
       <Stack gap={4}>
-        <Title order={2}>Configuration</Title>
+        <Title order={2}>Mappers</Title>
         <Text c="dimmed">
-          Configure your integration settings and preferences.
+          Configure your mappers and preferences.
         </Text>
       </Stack>
 
       <Paper withBorder shadow="sm" radius="lg" p="lg">
         <Stack gap="md">
-          <Text>Configuration options will be available here soon.</Text>
+          <Text>Mappers options will be available here soon.</Text>
         </Stack>
       </Paper>
     </Stack>

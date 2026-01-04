@@ -83,6 +83,51 @@ export const getOpportunity = async (accessToken, opportunityId) => {
   }
 };
 
+export const getPipelines = async (accessToken, locationId) => {
+  const url = `${process.env.GHL_BASE_URL}/opportunities/pipelines?locationId=${locationId}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+
+    return getResponse.data?.pipelines || [];
+  } catch (error) {
+    throw new AppError(
+      `Get opportunity failed: ${error.message}`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+};
+
+export const getUsers = async (accessToken, locationId) => {
+  const url = `${process.env.GHL_BASE_URL}/users?locationId=${locationId}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+
+    return getResponse.data?.users || [];
+  } catch (error) {
+    throw new AppError(
+      `Get users failed: ${error.message}`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+};
+
+
 export const retrieveOpportunityCustomFields = async (
   accessToken,
   locationId
