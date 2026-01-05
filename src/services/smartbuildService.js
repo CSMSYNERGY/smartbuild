@@ -10,6 +10,7 @@ import { AppError, ErrorCodes } from "../models/errors.js";
 import { Timestamp } from "@google-cloud/firestore";
 import { isTokenExpired } from "../utils/authUtils.js";
 import {
+  deleteSmartbuildAuthData,
   getSmartbuildAuthData,
   saveSmartbuildAuthData,
 } from "./firestoreService.js";
@@ -467,18 +468,17 @@ export const getAuthenticatedSmartbuild = async (locationId) => {
     }
     return smartbuildAuthData;
   } catch (error) {
-    throw error instanceof AppError
-      ? error
-      : new AppError(
-          `Error getting authenticated smartbuild for location: ${error.message}`,
-          500,
-          ErrorCodes.INTERNAL_SERVER_ERROR
-        );
+    logger.error(
+      `Error getting authenticated smartbuild for location: ${locationId}, error: ${error.message}`,
+      error
+    );
+    await deleteSmartbuildAuthData(locationId);
+    throw new AppError(
+      `Error getting smartbuild authentication. Check your credentials from CPI UI and try again.`,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
   }
-};
-
-export const getSmartbuildAuthentication = async (locationId) => {
-  return await getAuthenticatedSmartbuild(locationId);
 };
 
 const isValidValue = (value) => {

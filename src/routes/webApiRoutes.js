@@ -36,8 +36,8 @@ router.post("/subscription/cancel", cancelSubscriptionController);
 router.post("/subscription/update-payment", updatePaymentController);
 
 router.get("/mappers", getMappersController);
-router.get("/mappers/:mapperId", getMapperController);
 router.post("/mappers", createMapperController);
+router.get("/mappers/:mapperId", getMapperController);
 router.put("/mappers/:mapperId", updateMapperController);
 router.delete("/mappers/:mapperId", deleteMapperController);
 export default router;

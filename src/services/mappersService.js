@@ -79,7 +79,7 @@ export const createMapperForLocation = async (locationId, name, type) => {
     );
   }
 
-  const item = await createMapperItem(locationId, { name, type });
+  const item = await createMapperItem(locationId, { name, type, map: {} });
   return item.id;
 };
 
@@ -91,6 +91,25 @@ export const deleteMapperForLocation = async (locationId, mapperId) => {
   await deleteMapperItem(locationId, mapperId);
 };
 
+export const getMapperValueForLocation = async (locationId, mapperId, key) => {
+  const mapper = await getMapperForLocation(locationId, mapperId);
+  if (mapper == null) {
+    throw new AppError(
+      `Mapper ${mapperId} not found. Try creating the mapper first.`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+
+  if (!(key in mapper.map)) {
+    throw new AppError(
+      `Key mapping for ${key} in mapper ${mapperId} not found. Try adding the key to the mapper first.`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+  return mapper.map[key];
+};
 
 //unused for now
 const getMapperOptionsForType = async (locationId, typeKey) => {

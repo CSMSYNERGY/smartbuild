@@ -10,7 +10,7 @@ import logger from "../config/logger.js";
 import { checkLocationAuthorization } from "../services/authService.js";
 import {
   authenticateSmartbuild,
-  getSmartbuildAuthentication,
+  getAuthenticatedSmartbuild,
 } from "../services/smartbuildService.js";
 import {
   getMappersForLocation,
@@ -103,7 +103,7 @@ export const getSmartbuildConfigurationnController = async (req, res) => {
   const locationId = req.webUser.locationId;
   let authData = null;
   try {
-    authData = await getSmartbuildAuthentication(locationId);
+    authData = await getAuthenticatedSmartbuild(locationId);
   } catch (error) {
     logger.warn(
       `SmartBuild auth for location unavailable: ${locationId}`,
@@ -137,21 +137,45 @@ export const createMapperController = async (req, res) => {
 };
 
 export const updateMapperController = async (req, res) => {
-  const locationId = req.webUser.locationId;
-  const mapperId = req.params.mapperId;
-  const { name, type } = req.body;
-  const mapper = await updateMapperForLocation(
-    locationId,
-    mapperId,
-    name,
-    type
-  );
-  res.status(200).json(mapper);
-};
+  try {
+    const locationId = req.webUser.locationId;
+    const mapperId = req.params.mapperId;
+    const mapperNew = await getMapperForLocation(locationId, mapperId);
+    if (!mapperNew.map) {
+      mapperNew.map = {};
+    }
+    const { name, map, deleted } = req.body;
 
+    if (name) {
+      mapperNew.name = name;
+    }
+
+    if (map) {
+      Object.keys(map).forEach((key) => {
+        mapperNew.map[key] = map[key];
+      });
+    }
+
+    if (deleted && Array.isArray(deleted) && deleted.length > 0) {
+      for (const key of deleted) {
+        delete mapperNew.map[key];
+      }
+    }
+
+    await updateMapperForLocation(locationId, mapperId, mapperNew);
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    logger.error("Error updating mapper", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 export const deleteMapperController = async (req, res) => {
   const locationId = req.webUser.locationId;
   const mapperId = req.params.mapperId;
   await deleteMapperForLocation(locationId, mapperId);
   res.status(200).json({ ok: true });
 };
+
