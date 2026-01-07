@@ -14,6 +14,9 @@ import {
   createMapperController,
   updateMapperController,
   deleteMapperController,
+  getMapperTypesController,
+  searchMapperObjectsDynamicController,
+  getMapperObjectDynamicController,
 } from "../controllers/webApiController.js";
 const router = express.Router();
 
@@ -35,9 +38,15 @@ router.post("/subscription/create", createSubscriptionController);
 router.post("/subscription/cancel", cancelSubscriptionController);
 router.post("/subscription/update-payment", updatePaymentController);
 
+router.get("/mapper-types", getMapperTypesController);
+
 router.get("/mappers", getMappersController);
 router.post("/mappers", createMapperController);
+
 router.get("/mappers/:mapperId", getMapperController);
 router.put("/mappers/:mapperId", updateMapperController);
 router.delete("/mappers/:mapperId", deleteMapperController);
+
+router.post("/mappers/:mapperId/search", searchMapperObjectsDynamicController);
+router.get("/mappers/:mapperId/object", getMapperObjectDynamicController);
 export default router;

@@ -183,14 +183,14 @@ export const saveSubscription = async (subscriptionId, subscription) => {
   }
 };
 
-export const saveMapperItem = async (locationId, mapperId, item) => {
+export const saveMapperItem = async (locationId, mapperId, item, merge = true) => {
   try {
     await db
       .collection("mappers")
       .doc(locationId)
       .collection("items")
       .doc(mapperId)
-      .set(item, { merge: true });
+      .set(item, { merge });
   } catch (error) {
     throw new AppError(
       "Database save failed: " + error.message,

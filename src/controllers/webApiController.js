@@ -7,6 +7,7 @@ import {
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
 import logger from "../config/logger.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
 import { checkLocationAuthorization } from "../services/authService.js";
 import {
   authenticateSmartbuild,
@@ -18,7 +19,14 @@ import {
   createMapperForLocation,
   updateMapperForLocation,
   deleteMapperForLocation,
+  getMapperTypes,
+  searchMapperObjectsDynamic,
+  getMapperObjectDynamic,
 } from "../services/mappersService.js";
+import {
+  validateAndCleanQuery,
+  validatePageAndLimit,
+} from "../utils/globalUtils.js";
 export const getWebUserController = async (req, res) => {
   try {
     const user = req.webUser;
@@ -144,7 +152,7 @@ export const updateMapperController = async (req, res) => {
     if (!mapperNew.map) {
       mapperNew.map = {};
     }
-    const { name, map, deleted } = req.body;
+    const { name, map } = req.body;
 
     if (name) {
       mapperNew.name = name;
@@ -152,14 +160,13 @@ export const updateMapperController = async (req, res) => {
 
     if (map) {
       Object.keys(map).forEach((key) => {
-        mapperNew.map[key] = map[key];
+        if (map[key] === null) {
+          // null value means delete the key
+          delete mapperNew.map[key];
+        } else {
+          mapperNew.map[key] = map[key];
+        }
       });
-    }
-
-    if (deleted && Array.isArray(deleted) && deleted.length > 0) {
-      for (const key of deleted) {
-        delete mapperNew.map[key];
-      }
     }
 
     await updateMapperForLocation(locationId, mapperId, mapperNew);
@@ -179,3 +186,40 @@ export const deleteMapperController = async (req, res) => {
   res.status(200).json({ ok: true });
 };
 
+export const getMapperTypesController = async (req, res) => {
+  const mapperTypes = await getMapperTypes();
+  res.status(200).json(mapperTypes);
+};
+
+export const searchMapperObjectsDynamicController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mapperId = req.params.mapperId;
+  const { query, page, limit } = req.body;
+
+  const cleanedQuery = validateAndCleanQuery(query);
+  const { page: validatedPage, limit: validatedLimit } = validatePageAndLimit(
+    page,
+    limit
+  );
+
+  const result = await searchMapperObjectsDynamic(
+    locationId,
+    mapperId,
+    cleanedQuery,
+    validatedPage,
+    validatedLimit
+  );
+  res.status(200).json(result);
+};
+
+export const getMapperObjectDynamicController = async (req, res) => {
+  const locationId = req.webUser.locationId;
+  const mapperId = req.params.mapperId;
+  const { mapperKey } = req.query;
+
+  if (!mapperKey) {
+    return res.status(400).json({ error: "Mapper key is required" });
+  }
+  const result = await getMapperObjectDynamic(locationId, mapperId, mapperKey);
+  res.status(200).json(result);
+};

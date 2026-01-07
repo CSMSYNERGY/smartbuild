@@ -1,6 +1,11 @@
 import { getAuthenticatedLocation } from "./authService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
-import { getPipelines, getUsers } from "./ghlService.js";
+import {
+  getOpportunityForMapping,
+  getPipelines,
+  getUsers,
+  searchOpportunities,
+} from "./ghlService.js";
 import {
   createMapperItem,
   deleteMapperItem,
@@ -13,33 +18,84 @@ export const mapperTypes = {
   custom: {
     name: "Custom",
     description: "Custom type key",
+    dynamic: false,
   },
   pipeline: {
     name: "Pipeline",
     description: "Pipeline type key",
+    dynamic: false,
+    object: {
+      key: "id",
+      availableFields: ["id", "name"],
+    },
   },
   user: {
     name: "User",
     description: "User type key",
+    dynamic: false,
+    object: {
+      key: "id",
+      availableFields: ["id", "name", "email"],
+    },
+  },
+  oppurtunity: {
+    name: "Oppurtunity",
+    description: "Oppurtunity type key",
+    dynamic: true,
+    object: {
+      key: "id",
+      availableFields: ["id", "name", "monetaryValue", "source", "status", "contactName", "contactEmail", "contactPhone"],
+    },
   },
 };
 
-export const mapperOptions = {
+export const mapperObjects = {
   pipeline: async (accessToken, locationId) => {
     const pipelines = await getPipelines(accessToken, locationId);
-    return pipelines.map((pipeline) => ({
-      id: pipeline.id,
-      name: pipeline.name,
-    }));
+    const result = {};
+    pipelines.forEach((pipeline) => {
+      const pipelineObj = {
+        id: pipeline.id,
+        name: pipeline.name,
+      };
+      result[pipeline.id] = pipelineObj;
+    });
+    return result;
   },
   user: async (accessToken, locationId) => {
+    const result = {};
     const users = await getUsers(accessToken, locationId);
-    return users.map((user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-    }));
+    users.forEach((user) => {
+      const userObj = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      };
+      result[user.id] = userObj;
+    });
+    return result;
+  },
+};
+
+export const mapperObjectsDynamic = {
+  oppurtunity: {
+    get: async (accessToken, locationId, mapperKey) => {
+      const opportunity = await getOpportunityForMapping(
+        accessToken,
+        mapperKey
+      );
+      return opportunity;
+    },
+    search: async (accessToken, locationId, query, page, limit) => {
+      const oppurtunities = await searchOpportunities(
+        accessToken,
+        locationId,
+        query,
+        page,
+        limit
+      );
+      return oppurtunities;
+    },
   },
 };
 
@@ -59,11 +115,13 @@ export const getMapperForLocation = async (locationId, mapperId) => {
   }
 
   const typeKey = item.type;
-  if (typeKey in mapperOptions) {
+  item.dynamic = mapperTypes[typeKey].dynamic;
+
+  if (typeKey in mapperObjects) {
     const locationData = await getAuthenticatedLocation(locationId);
-    item.options = await mapperOptions[typeKey](
+    item.options = await mapperObjects[typeKey](
       locationData.accessToken,
-      locationData.locationId
+      locationId
     );
   }
 
@@ -84,7 +142,13 @@ export const createMapperForLocation = async (locationId, name, type) => {
 };
 
 export const updateMapperForLocation = async (locationId, mapperId, mapper) => {
-  await saveMapperItem(locationId, mapperId, mapper);
+  // Only save allowed fields - options and dynamic are computed on-the-fly
+  const sanitizedMapper = {
+    name: mapper.name,
+    type: mapper.type,
+    map: mapper.map || {},
+  };
+  await saveMapperItem(locationId, mapperId, sanitizedMapper, false);
 };
 
 export const deleteMapperForLocation = async (locationId, mapperId) => {
@@ -111,20 +175,58 @@ export const getMapperValueForLocation = async (locationId, mapperId, key) => {
   return mapper.map[key];
 };
 
-//unused for now
-const getMapperOptionsForType = async (locationId, typeKey) => {
-  if (!(typeKey in mapperOptions)) {
+export const getMapperTypes = async () => {
+  return mapperTypes;
+};
+
+//search dynamic mapper objects
+export const searchMapperObjectsDynamic = async (
+  locationId,
+  mapperId,
+  query,
+  page,
+  limit
+) => {
+  const mapper = await getMapperForLocation(locationId, mapperId);
+  if (!mapper || !mapperTypes[mapper.type].dynamic) {
     throw new AppError(
-      `Invalid mapper type: ${typeKey}`,
-      400,
-      ErrorCodes.BAD_REQUEST
+      `Mapper ${mapperId} not found or is not dynamic.`,
+      404,
+      ErrorCodes.NOT_FOUND
     );
   }
-
+  const typeKey = mapper.type;
   const locationData = await getAuthenticatedLocation(locationId);
-  const result = await mapperOptions[typeKey](
+  const result = await mapperObjectsDynamic[typeKey].search(
     locationData.accessToken,
-    locationData.locationId
+    locationId,
+    query,
+    page,
+    limit
+  );
+  return result;
+};
+
+//get a specific object
+export const getMapperObjectDynamic = async (
+  locationId,
+  mapperId,
+  mapperKey
+) => {
+  const mapper = await getMapperForLocation(locationId, mapperId);
+  if (!mapper || !mapperTypes[mapper.type].dynamic) {
+    throw new AppError(
+      `Mapper ${mapperId} not found or is not dynamic.`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+  const typeKey = mapper.type;
+  const locationData = await getAuthenticatedLocation(locationId);
+  const result = await mapperObjectsDynamic[typeKey].get(
+    locationData.accessToken,
+    locationId,
+    mapperKey
   );
   return result;
 };
