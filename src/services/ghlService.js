@@ -83,6 +83,170 @@ export const getOpportunity = async (accessToken, opportunityId) => {
   }
 };
 
+export const getOpportunityForMapping = async (accessToken, opportunityId) => {
+  const url = `${process.env.GHL_BASE_URL}/opportunities/${opportunityId}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+    const opportunity = getResponse.data?.opportunity ?? null;
+    if (opportunity == null) {
+      return null;
+    }
+    return {
+      id: opportunity.id,
+      name: opportunity.name,
+      status: opportunity.status,
+      monetaryValue: opportunity.monetaryValue,
+      source: opportunity.source,
+      contactName: opportunity.contact?.name,
+      contactEmail: opportunity.contact?.email,
+      contactPhone: opportunity.contact?.phone,
+    };
+  } catch (error) {
+    // If GHL returns 400 with message about opportunity not existing, return null
+    if (
+      error.response?.status === 400 &&
+      error.response?.data?.message?.includes("doesn't exist or is deleted")
+    ) {
+      return null;
+    }
+
+    throw new AppError(
+      `Get opportunity failed: ${error.message}`,
+      404,
+      ErrorCodes.OPPORTUNITY_NOT_FOUND
+    );
+  }
+};
+
+export const searchOpportunities = async (
+  accessToken,
+  locationId,
+  query,
+  page,
+  limit
+) => {
+  const url = `${process.env.GHL_BASE_URL}/opportunities/search?location_id=${locationId}&q=${query}&page=${page}&limit=${limit}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+
+    if (
+      getResponse?.data?.opportunities == null ||
+      getResponse?.data?.meta == null
+    ) {
+      throw new AppError(
+        `Get opportunity failed: Invalid response structure`,
+        500,
+        ErrorCodes.INTERNAL_SERVER_ERROR
+      );
+    }
+
+    const opportunities =
+      getResponse.data.opportunities.map((opportunity) => {
+        const opportunityObj = {
+          id: opportunity.id,
+          name: opportunity.name,
+          status: opportunity.status,
+          monetaryValue: opportunity.monetaryValue,
+          assignedTo: opportunity.assignedTo,
+          pipeline: opportunity.pipeline,
+        };
+        opportunityObj.contact = opportunity.contact
+          ? {
+              id: opportunity.contact.id,
+              name: opportunity.contact.name,
+              email: opportunity.contact.email,
+              phone: opportunity.contact.phone,
+            }
+          : null;
+        return opportunityObj;
+      }) || [];
+
+    const meta = {
+      totalCount: getResponse.data.meta.total,
+      currentPage: getResponse.data.meta.currentPage,
+      totalPages: Math.ceil(getResponse.data.meta.total / limit),
+      previousPage:
+        getResponse.data.meta.prevPage &&
+        getResponse.data.meta.prevPage.length > 0
+          ? getResponse.data.meta.prevPage
+          : null,
+      nextPage:
+        getResponse.data.meta.nextPage &&
+        getResponse.data.meta.nextPage.length > 0
+          ? getResponse.data.meta.nextPage
+          : null,
+    };
+    return {
+      opportunities,
+      meta,
+    };
+  } catch (error) {
+    throw new AppError(
+      `Get opportunity failed: ${error.message}`,
+      404,
+      ErrorCodes.OPPORTUNITY_NOT_FOUND
+    );
+  }
+};
+
+export const getPipelines = async (accessToken, locationId) => {
+  const url = `${process.env.GHL_BASE_URL}/opportunities/pipelines?locationId=${locationId}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+
+    return getResponse.data?.pipelines || [];
+  } catch (error) {
+    throw new AppError(
+      `Get opportunity failed: ${error.message}`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+};
+
+export const getUsers = async (accessToken, locationId) => {
+  const url = `${process.env.GHL_BASE_URL}/users/?locationId=${locationId}`;
+
+  try {
+    const getResponse = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Version: process.env.GHL_DEFAULT_API_VERSION,
+      },
+    });
+
+    return getResponse.data?.users || [];
+  } catch (error) {
+    throw new AppError(
+      `Get users failed: ${error.message}`,
+      404,
+      ErrorCodes.NOT_FOUND
+    );
+  }
+};
+
 export const retrieveOpportunityCustomFields = async (
   accessToken,
   locationId

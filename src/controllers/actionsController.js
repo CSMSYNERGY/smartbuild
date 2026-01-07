@@ -5,23 +5,30 @@ import {
 import {
   createOrEditJob,
   getJobData,
-  getSmartbuildToken,
   retrieveSmartbuildCustomFields,
+  getCreateOrEditJobMetaData,
+  getRetrieveSmartbuildJobMetaData,
+  removeProcessedKeys,
+  sanitizeInput,
+  getAuthenticatedSmartbuild,
 } from "../services/smartbuildService.js";
 import {
   retrieveOpportunityCustomFields,
   updateOpportunity,
 } from "../services/ghlService.js";
-import {
-  getAuthenticatedLocation,
-  getAuthenticatedSmartbuild,
-} from "../services/authService.js";
-import { AppError, ErrorCodes } from "../models/errors.js";
+import { getAuthenticatedLocation } from "../services/authService.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
 import {
   convertDatesToGHLFormat,
   convertDatesToSmartBuildFormat,
 } from "../utils/smartbuildUtils.js";
+import { getLocationIdFromRequest } from "../utils/authUtils.js";
+import {
+  getMapperForLocation,
+  getMappersForLocation,
+  getMapperValueForLocation,
+  updateMapperForLocation,
+} from "../services/mappersService.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
@@ -74,10 +81,7 @@ export const retrieveSmartbuildJob = async (req, res) => {
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const smartbuildAuthentication = await getSmartbuildAuthentication(
-    data,
-    locationId
-  );
+  const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
   const { jobID, extraUserAnswers, extraTokenValues } =
     getRetrieveSmartbuildJobMetaData(data);
   const jobInfoIds = [
@@ -106,10 +110,7 @@ export const createOrEditSmartbuildJob = async (req, res) => {
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
   const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(data);
-  const smartbuildAuthentication = await getSmartbuildAuthentication(
-    data,
-    locationId
-  );
+  const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
 
   const cleanedBody = removeProcessedKeys(data);
   const convertedBody = convertDatesToSmartBuildFormat(cleanedBody);
@@ -123,113 +124,72 @@ export const createOrEditSmartbuildJob = async (req, res) => {
   return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });
 };
 
-const getLocationIdFromRequest = (req) => {
-  const locationId = req.headers["locationid"] || req.query.locationId;
-  if (!locationId) {
-    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
-  }
-  return locationId;
-};
-
-const getCreateOrEditJobMetaData = (body) => {
-  const isCreate = !body.jobID || body.jobID === "0";
-
-  if (isCreate) {
-    // For create requests, modelID must be present
-    if (!body.modelID) {
-      throw new AppError(
-        "ModelID is required for creating a new job",
-        400,
-        ErrorCodes.BAD_REQUEST
-      );
-    }
-    return {
-      isCreate: true,
-      modelID: body.modelID,
-      jobID: "0",
-    };
-  }
-
-  return {
-    isCreate: false,
-    modelID: null, // modelID is ignored for edit requests
-    jobID: body.jobID,
-  };
-};
-
-const getRetrieveSmartbuildJobMetaData = (body) => {
-  if (!body.jobID || body.jobID === "0") {
+export const getMapperValue = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, mapper_key } = data;
+  if (!mapper_id || !mapper_key) {
     throw new AppError(
-      "JobID is required for retrieving a job",
+      "Missing required fields: mapper_id, mapper_key",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  const value = await getMapperValueForLocation(
+    locationId,
+    data.mapper_id,
+    data.mapper_key
+  );
+  return res.status(200).json({ value });
+};
+
+export const updateMapper = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, operation_type, mapping_key, mapping_value } = data;
+  if (!mapper_id || !operation_type || !mapping_key) {
+    throw new AppError(
+      "Missing required fields: mapper_id, operation_type, mapping_key",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  if (operation_type === "update" && !mapping_value) {
+    throw new AppError(
+      "Missing required field: mapping_value",
       400,
       ErrorCodes.BAD_REQUEST
     );
   }
 
-  let extraUserAnswers = [];
-  if (body.extraUserAnswers && typeof body.extraUserAnswers === "string") {
-    extraUserAnswers = body.extraUserAnswers
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  let message = "";
+  if (operation_type === "update") {
+    mapper.map[mapping_key] = mapping_value;
+    message = `Mapper key ${mapping_key} updated successfully to ${mapping_value}`;
+  } else if (operation_type === "delete") {
+    delete mapper.map[mapping_key];
+    message = `Mapper key ${mapping_key} deleted successfully`;
   }
-
-  let extraTokenValues = [];
-  if (body.extraTokenValues && typeof body.extraTokenValues === "string") {
-    extraTokenValues = body.extraTokenValues
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return {
-    jobID: body.jobID,
-    extraUserAnswers,
-    extraTokenValues,
-  };
+  logger.info("Mapper updated: ", {
+    locationId,
+    mapper_id,
+    operation_type,
+    mapping_key,
+    mapping_value,
+    message,
+  });
+  await updateMapperForLocation(locationId, mapper_id, mapper);
+  return res.status(200).json({ ok: true, message });
 };
 
-const removeProcessedKeys = (data) => {
-  const updatedData = { ...data };
-
-  delete updatedData.jobID;
-  delete updatedData.modelID;
-  delete updatedData.username;
-  delete updatedData.password;
-  return updatedData;
-};
-
-const getSmartbuildAuthentication = async (body, locationId) => {
-  const { username, password } = body;
-
-  if (username) {
-    return await getSmartbuildToken(username, password);
-  }
-
-  return await getAuthenticatedSmartbuild(locationId);
-};
-
-
-const sanitizeInput = (obj) => {
-  const cleaned = {};
-  for (const key in obj) {
-    const value = obj[key];
-    if (isValidValue(value)) {
-      cleaned[key] = value;
-    }
-  }
-  return cleaned;
-};
-
-const isValidValue = (value) => {
-  if (value === null || value === undefined) return false;
-
-  if (typeof value === "object") return true; // keep nested objects/arrays
-
-  if (typeof value === "string") {
-    const trimmed = value.trim().toLowerCase();
-    return trimmed !== "" && trimmed !== "nan";
-  }
-
-  return true; // optionally allow numbers, booleans, etc.
+export const getMappers = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const mappers = await getMappersForLocation(locationId);
+  return res.status(200).json({
+    options: mappers.map((mapper) => ({
+      value: mapper.id,
+      label: mapper.name,
+    })),
+  });
 };

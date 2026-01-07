@@ -169,6 +169,33 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
   }
 };
 
+/**
+ * Checks if a location has an active subscription (user still has access).
+ * getEntitlementDetailsForLocation already handles all the logic for checking
+ * if cancelled subscriptions are past their end date, so we just need to check
+ * if the status is "active", "cancelled", or includes "pending".
+ * 
+ * @param {string} locationId - The location ID to check
+ * @returns {Promise<boolean>} - True if subscription is active, false otherwise
+ */
+export const isLocationSubscriptionActive = async (locationId) => {
+  try {
+    const entitlementDetails = await getEntitlementDetailsForLocation(locationId);
+    const status = entitlementDetails.status;
+    
+    // getEntitlementDetailsForLocation already handles expiry checks for cancelled subscriptions
+    // So if status is "active", "cancelled", or includes "pending", subscription is active
+    return status === "active" || status === "cancelled" || status.includes("pending");
+  } catch (error) {
+    logger.error(
+      `Error checking subscription status for location ${locationId}`,
+      error
+    );
+    // On error, assume not active to be safe
+    return false;
+  }
+};
+
 export const cancelSubscription = async (user) => {
   const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
 

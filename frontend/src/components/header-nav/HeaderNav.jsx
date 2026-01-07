@@ -1,12 +1,6 @@
 // components/HeaderNav.jsx
 import { Link, useLocation } from "react-router-dom";
-import {
-  ActionIcon,
-  Anchor,
-  Group,
-  Title,
-  Text,
-} from "@mantine/core";
+import { ActionIcon, Anchor, Group, Title, Text } from "@mantine/core";
 import { IconExternalLink } from "@tabler/icons-react";
 import { useAuth } from "../../context/AuthProvider.jsx";
 
@@ -17,7 +11,8 @@ export default function HeaderNav() {
   const links = [
     { to: "/home", label: "Home" },
     { to: "/subscription", label: "Subscription" },
-    { to: "/configuration", label: "Configuration" },
+    { to: "/smartbuild", label: "Smart Build" },
+    { to: "/mappers", label: "Mappers" },
   ];
 
   const isEmbedded =

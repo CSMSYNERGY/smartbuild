@@ -9,8 +9,10 @@ import { MantineProvider, createTheme } from "@mantine/core";
 
 import Home from "./pages/Home.jsx";
 import Subscription from "./pages/Subscription.jsx";
-import Configuration from "./pages/Configuration.jsx";
+import Mappers from "./pages/Mappers.jsx";
+import Mapper from "./pages/Mapper.jsx";
 import PublicLanding from "./pages/public/PublicLanding.jsx";
+import SmartBuild from "./pages/SmartBuild.jsx";
 
 import PublicLayout from "./layouts/PublicLayout.jsx";
 import PrivateLayout from "./layouts/PrivateLayout.jsx";
@@ -46,7 +48,9 @@ function App() {
           <Route path="/*" element={<PrivateBranch />}>
             <Route path="home" element={<Home />} />
             <Route path="subscription" element={<Subscription />} />
-            <Route path="configuration" element={<Configuration />} />
+            <Route path="mappers" element={<Mappers />} />
+            <Route path="mappers/:mapperId" element={<Mapper />} />
+            <Route path="smartbuild" element={<SmartBuild />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Route>
         </Routes>

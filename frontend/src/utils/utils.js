@@ -55,6 +55,5 @@ export async function fetchMe() {
     method: "GET",
     credentials: "include",
   });
-  console.log("fetchMe response", res);
   return res.ok ? res.json() : null;
 }

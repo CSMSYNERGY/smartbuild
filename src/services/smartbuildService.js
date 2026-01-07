@@ -8,6 +8,12 @@ import {
 } from "../utils/smartbuildUtils.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
 import { Timestamp } from "@google-cloud/firestore";
+import { isTokenExpired } from "../utils/authUtils.js";
+import {
+  deleteSmartbuildAuthData,
+  getSmartbuildAuthData,
+  saveSmartbuildAuthData,
+} from "./firestoreService.js";
 export const getSmartbuildToken = async (username, password) => {
   try {
     const response = await axios.post(
@@ -318,7 +324,9 @@ export const retrieveSmartbuildCustomFields = async (accessToken) => {
   }
 };
 
-export const retrieveSmartbuildCustomFieldsForRetrieval = async (accessToken) => {
+export const retrieveSmartbuildCustomFieldsForRetrieval = async (
+  accessToken
+) => {
   const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/GetQuestions`;
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -328,12 +336,11 @@ export const retrieveSmartbuildCustomFieldsForRetrieval = async (accessToken) =>
     const response = await axios.get(url, { headers });
     const validTypes = ["string", "string2", "date"];
 
-    const transformedData = response.data.Questions.filter(
-      (question) =>
-        validTypes.includes(question.Type)
+    const transformedData = response.data.Questions.filter((question) =>
+      validTypes.includes(question.Type)
     ).map((question) => ({
       value: question.Id,
-      label: question.Prompt
+      label: question.Prompt,
     }));
 
     return transformedData;
@@ -344,4 +351,156 @@ export const retrieveSmartbuildCustomFieldsForRetrieval = async (accessToken) =>
       ErrorCodes.BAD_REQUEST
     );
   }
+};
+
+export const getCreateOrEditJobMetaData = (body) => {
+  const isCreate = !body.jobID || body.jobID === "0";
+
+  if (isCreate) {
+    // For create requests, modelID must be present
+    if (!body.modelID) {
+      throw new AppError(
+        "ModelID is required for creating a new job",
+        400,
+        ErrorCodes.BAD_REQUEST
+      );
+    }
+    return {
+      isCreate: true,
+      modelID: body.modelID,
+      jobID: "0",
+    };
+  }
+
+  return {
+    isCreate: false,
+    modelID: null, // modelID is ignored for edit requests
+    jobID: body.jobID,
+  };
+};
+
+export const getRetrieveSmartbuildJobMetaData = (body) => {
+  if (!body.jobID || body.jobID === "0") {
+    throw new AppError(
+      "JobID is required for retrieving a job",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  let extraUserAnswers = [];
+  if (body.extraUserAnswers && typeof body.extraUserAnswers === "string") {
+    extraUserAnswers = body.extraUserAnswers
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  let extraTokenValues = [];
+  if (body.extraTokenValues && typeof body.extraTokenValues === "string") {
+    extraTokenValues = body.extraTokenValues
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return {
+    jobID: body.jobID,
+    extraUserAnswers,
+    extraTokenValues,
+  };
+};
+
+export const removeProcessedKeys = (data) => {
+  const updatedData = { ...data };
+
+  delete updatedData.jobID;
+  delete updatedData.modelID;
+  delete updatedData.username;
+  delete updatedData.password;
+  return updatedData;
+};
+
+export const authenticateSmartbuild = async (
+  locationId,
+  smartbuildUserId,
+  smartbuildUserPassword
+) => {
+  try {
+    const smartbuildAuthData = await getSmartbuildToken(
+      smartbuildUserId,
+      smartbuildUserPassword
+    );
+    await saveSmartbuildAuthData(locationId, {
+      ...smartbuildAuthData,
+      smartbuildUserId: smartbuildUserId,
+    });
+  } catch (error) {
+    throw error instanceof AppError
+      ? error
+      : new AppError(
+          `Error getting authenticating smartbuild for location: ${error.message}`,
+          500,
+          ErrorCodes.INTERNAL_SERVER_ERROR
+        );
+  }
+};
+
+export const getAuthenticatedSmartbuild = async (locationId) => {
+  try {
+    const smartbuildAuthData = await getSmartbuildAuthData(locationId);
+    if (!smartbuildAuthData) {
+      throw new AppError(
+        `Smartbuild auth data not found for location ${locationId}`,
+        404,
+        ErrorCodes.SMARTBUILD_AUTH_DATA_NOT_FOUND
+      );
+    }
+    if (isTokenExpired(smartbuildAuthData.expires)) {
+      logger.info(
+        `Smartbuild token expired for location ${locationId}. Refreshing...`
+      );
+      const newSmartbuildAuthData = await getSmartbuildTokenFromRefreshToken(
+        smartbuildAuthData.refreshToken
+      );
+      await saveSmartbuildAuthData(locationId, newSmartbuildAuthData);
+      return newSmartbuildAuthData;
+    }
+    return smartbuildAuthData;
+  } catch (error) {
+    logger.error(
+      `Error getting authenticated smartbuild for location: ${locationId}, error: ${error.message}`,
+      error
+    );
+    await deleteSmartbuildAuthData(locationId);
+    throw new AppError(
+      `Error getting smartbuild authentication. Check your credentials from CPI UI and try again.`,
+      500,
+      ErrorCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+const isValidValue = (value) => {
+  if (value === null || value === undefined) return false;
+
+  if (typeof value === "object") return true; // keep nested objects/arrays
+
+  if (typeof value === "string") {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed !== "" && trimmed !== "nan";
+  }
+
+  return true; // optionally allow numbers, booleans, etc.
+};
+
+export const sanitizeInput = (obj) => {
+  const cleaned = {};
+  for (const key in obj) {
+    const value = obj[key];
+    if (isValidValue(value)) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
 };
