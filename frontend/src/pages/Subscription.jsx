@@ -9,8 +9,8 @@ import {
   Stack,
   Text,
   Title,
-  Code,
   Divider,
+  Box,
 } from "@mantine/core";
 import {
   IconAlertCircle,
@@ -18,6 +18,9 @@ import {
   IconCreditCard,
   IconX,
   IconRefresh,
+  IconMail,
+  IconUser,
+  IconCalendar,
 } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
@@ -193,11 +196,93 @@ export default function Subscription() {
         </Group>
         {subscriptionByThisUser && paymentDetails && (
           <Paper withBorder p="md" radius="md" mt="md">
-            <Stack gap="sm">
-              <Text fw={600}>Current Payment Details</Text>
-              <Code block fz="sm">
-                {JSON.stringify(paymentDetails, null, 2)}
-              </Code>
+            <Stack gap="md">
+              <Text fw={600}>Current Payment Method</Text>
+              <Group gap="lg" align="flex-start">
+                {/* Card Info */}
+                <Paper
+                  withBorder
+                  p="md"
+                  radius="md"
+                  style={{
+                    background: "linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-5) 100%)",
+                    minWidth: 280,
+                  }}
+                >
+                  <Stack gap="md">
+                    <Group justify="space-between" align="center">
+                      <IconCreditCard size={24} color="var(--mantine-color-gray-4)" />
+                      <Text size="xs" c="dimmed" tt="uppercase">
+                        Credit Card
+                      </Text>
+                    </Group>
+                    <Text
+                      ff="monospace"
+                      size="lg"
+                      fw={500}
+                      c="white"
+                      style={{ letterSpacing: 2 }}
+                    >
+                      {paymentDetails.maskedNumber || "•••• •••• •••• ••••"}
+                    </Text>
+                    <Group justify="space-between">
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Expires
+                        </Text>
+                        <Text size="sm" fw={500} c="white">
+                          {paymentDetails.exp
+                            ? `${paymentDetails.exp.slice(0, 2)}/${paymentDetails.exp.slice(2)}`
+                            : "-"}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </Stack>
+                </Paper>
+
+                {/* Billing Details */}
+                <Stack gap="sm" style={{ flex: 1 }}>
+                  {paymentDetails.billingEmail && (
+                    <Group gap="sm">
+                      <IconMail size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Billing Email
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.billingEmail}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                  {paymentDetails.billingName && (
+                    <Group gap="sm">
+                      <IconUser size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Billing Name
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.billingName}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                  {paymentDetails.exp && (
+                    <Group gap="sm">
+                      <IconCalendar size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Expiration Date
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.exp.slice(0, 2)}/20{paymentDetails.exp.slice(2)}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                </Stack>
+              </Group>
             </Stack>
           </Paper>
         )}
