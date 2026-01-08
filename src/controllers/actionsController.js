@@ -84,7 +84,9 @@ export const getUpdateMapperDynamicFields = async (req, res) => {
   const mapperType = mapperTypes[mapper.type];
   const mapperKeyInput = {
     field: "mapping_key",
-    title: `Mapping Key (${mapperType.name} ${mapperType.object?.key?.toUpperCase() || ""})`,
+    title: `Mapping Key (${mapperType.name} ${
+      mapperType.object?.key?.toUpperCase() || ""
+    })`,
     fieldType: "string",
     required: true,
   };
@@ -98,9 +100,39 @@ export const getUpdateMapperDynamicFields = async (req, res) => {
     };
     inputs.push(mapperValueInput);
   }
-  return res
-    .status(200)
-    .json({ inputs: [{ section: "Mapping information", fields: [...inputs] }] });
+  return res.status(200).json({
+    inputs: [{ section: "Mapping information", fields: inputs }],
+  });
+};
+
+export const getGetMappingValueDynamicFields = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id } = data;
+  if (!mapper_id) {
+    throw new AppError(
+      "Missing required fields: mapper_id",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  const mapperTypes = await getMapperTypes();
+  const mapperType = mapperTypes[mapper.type];
+  const mapperKeyInput = {
+    field: "mapping_key",
+    title: `Mapping Key (${mapperType.name} ${
+      mapperType.object?.key?.toUpperCase() || ""
+    })`,
+    fieldType: "string",
+    required: true,
+  };
+  const inputs = [mapperKeyInput];
+
+  return res.status(200).json({
+    inputs: [{ section: "Mapping information", fields: inputs }],
+  });
 };
 
 export const getSmartbuildFields = async (req, res, next) => {
@@ -209,23 +241,25 @@ export const updateMapper = async (req, res) => {
 
   const mapper = await getMapperForLocation(locationId, mapper_id);
   let message = "";
+  let oldValue = mapper.map[mapping_key] || "";
   if (operation_type === "update") {
     mapper.map[mapping_key] = mapping_value;
-    message = `Mapper key ${mapping_key} updated successfully to ${mapping_value}`;
+    message = `Mapping key ${mapping_key} updated successfully to ${mapping_value}`;
   } else if (operation_type === "delete") {
     delete mapper.map[mapping_key];
-    message = `Mapper key ${mapping_key} deleted successfully`;
+    message = `Mapping key ${mapping_key} deleted successfully`;
   }
-  logger.info("Mapper updated: ", {
+  logger.info("Mapping updated: ", {
     locationId,
     mapper_id,
     operation_type,
     mapping_key,
     mapping_value,
+    oldValue,
     message,
   });
   await updateMapperForLocation(locationId, mapper_id, mapper);
-  return res.status(200).json({ ok: true, message });
+  return res.status(200).json({ message, oldValue });
 };
 
 export const getMappers = async (req, res) => {
