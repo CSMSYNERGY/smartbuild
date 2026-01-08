@@ -217,7 +217,7 @@ export const getMapperValue = async (req, res) => {
     data.mapper_id,
     data.mapping_key
   );
-  return res.status(200).json({ value });
+  return res.status(200).json({ ...value });
 };
 
 export const updateMapper = async (req, res) => {
