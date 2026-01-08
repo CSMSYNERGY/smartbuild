@@ -26,6 +26,7 @@ import {
 import {
   validateAndCleanQuery,
   validatePageAndLimit,
+  validateValueProperties,
 } from "../utils/globalUtils.js";
 export const getWebUserController = async (req, res) => {
   try {
@@ -139,8 +140,13 @@ export const getMapperController = async (req, res) => {
 
 export const createMapperController = async (req, res) => {
   const locationId = req.webUser.locationId;
-  const { name, type } = req.body;
-  const mapperId = await createMapperForLocation(locationId, name, type);
+  const { name, type, objectProperties } = req.body;
+  const mapperId = await createMapperForLocation(
+    locationId,
+    name,
+    type,
+    objectProperties
+  );
   res.status(200).json({ id: mapperId });
 };
 
@@ -168,6 +174,13 @@ export const updateMapperController = async (req, res) => {
         }
       });
     }
+
+    Object.keys(mapperNew.map).forEach((key) => {
+      validateValueProperties(
+        mapperNew.map[key],
+        mapperNew.objectConfiguration
+      );
+    });
 
     await updateMapperForLocation(locationId, mapperId, mapperNew);
     res.status(200).json({ ok: true });

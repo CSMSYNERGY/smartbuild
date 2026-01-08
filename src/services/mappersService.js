@@ -13,6 +13,7 @@ import {
   getMapperItems,
   saveMapperItem,
 } from "./firestoreService.js";
+import { validateObjectProperties } from "../utils/globalUtils.js";
 
 export const mapperTypes = {
   custom: {
@@ -44,9 +45,22 @@ export const mapperTypes = {
     dynamic: true,
     object: {
       key: "id",
-      availableFields: ["id", "name", "monetaryValue", "source", "status", "contactName", "contactEmail", "contactPhone"],
+      availableFields: [
+        "id",
+        "name",
+        "monetaryValue",
+        "source",
+        "status",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+      ],
     },
   },
+};
+
+export const getMapperProperty = (index) => {
+  return `Value ${index + 1}`;
 };
 
 export const mapperObjects = {
@@ -128,7 +142,12 @@ export const getMapperForLocation = async (locationId, mapperId) => {
   return item;
 };
 
-export const createMapperForLocation = async (locationId, name, type) => {
+export const createMapperForLocation = async (
+  locationId,
+  name,
+  type,
+  objectProperties
+) => {
   if (!(type in mapperTypes)) {
     throw new AppError(
       `Invalid mapper type: ${type}`,
@@ -137,7 +156,21 @@ export const createMapperForLocation = async (locationId, name, type) => {
     );
   }
 
-  const item = await createMapperItem(locationId, { name, type, map: {} });
+  // Validate and get cleaned properties
+  const validatedProperties = validateObjectProperties(objectProperties);
+
+  // Build object configuration from validated properties
+  const objectConfiguration = {};
+  validatedProperties.forEach((property, index) => {
+    objectConfiguration[property] = getMapperProperty(index);
+  });
+
+  const item = await createMapperItem(locationId, {
+    name,
+    type,
+    map: {},
+    objectConfiguration,
+  });
   return item.id;
 };
 
@@ -145,7 +178,6 @@ export const updateMapperForLocation = async (locationId, mapperId, mapper) => {
   // Only save allowed fields - options and dynamic are computed on-the-fly
   const sanitizedMapper = {
     name: mapper.name,
-    type: mapper.type,
     map: mapper.map || {},
   };
   await saveMapperItem(locationId, mapperId, sanitizedMapper, false);
@@ -172,7 +204,15 @@ export const getMapperValueForLocation = async (locationId, mapperId, key) => {
       ErrorCodes.NOT_FOUND
     );
   }
-  return mapper.map[key];
+
+  const objectConfiguration = mapper.objectConfiguration;
+  const valueObject = mapper.map[key];
+  let result = {};
+  Object.keys(valueObject).forEach((innerKey) => {
+    result[objectConfiguration[innerKey]] = valueObject[innerKey];
+  });
+
+  return result;
 };
 
 export const getMapperTypes = async () => {
