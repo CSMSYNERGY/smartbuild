@@ -26,10 +26,12 @@ import { getLocationIdFromRequest } from "../utils/authUtils.js";
 import {
   getMapperForLocation,
   getMappersForLocation,
+  getMapperTypes,
   getMapperValueForLocation,
   updateMapperForLocation,
 } from "../services/mappersService.js";
 import { AppError, ErrorCodes } from "../models/errors.js";
+import logger from "../config/logger.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
@@ -57,6 +59,48 @@ export const getOpportunityCustomFields = async (req, res, next) => {
   return res
     .status(200)
     .json({ inputs: [{ section: "Custom Fields", fields: customFields }] });
+};
+
+export const getUpdateMapperDynamicFields = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, operation_type } = data;
+  if (!mapper_id || !operation_type) {
+    throw new AppError(
+      "Missing required fields: mapper_id, operation_type",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  if (operation_type !== "update" && operation_type !== "delete") {
+    throw new AppError(
+      "Invalid operation type: " + operation_type,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  const mapperTypes = await getMapperTypes();
+  const mapperType = mapperTypes[mapper.type];
+  const mapperKeyInput = {
+    field: "mapping_key",
+    title: `Mapping Key (${mapperType.name} ${mapperType.object?.key?.toUpperCase() || ""})`,
+    fieldType: "string",
+    required: true,
+  };
+  const inputs = [mapperKeyInput];
+  if (operation_type === "update") {
+    const mapperValueInput = {
+      field: "mapping_value",
+      title: "Mapping Value",
+      fieldType: "string",
+      required: true,
+    };
+    inputs.push(mapperValueInput);
+  }
+  return res
+    .status(200)
+    .json({ inputs: [{ section: "Mapping information", fields: [...inputs] }] });
 };
 
 export const getSmartbuildFields = async (req, res, next) => {
@@ -128,10 +172,10 @@ export const createOrEditSmartbuildJob = async (req, res) => {
 export const getMapperValue = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
   const data = sanitizeInput(req.body?.data || req.body);
-  const { mapper_id, mapper_key } = data;
-  if (!mapper_id || !mapper_key) {
+  const { mapper_id, mapping_key } = data;
+  if (!mapper_id || !mapping_key) {
     throw new AppError(
-      "Missing required fields: mapper_id, mapper_key",
+      "Missing required fields: mapper_id, mapping_key",
       400,
       ErrorCodes.BAD_REQUEST
     );
@@ -139,7 +183,7 @@ export const getMapperValue = async (req, res) => {
   const value = await getMapperValueForLocation(
     locationId,
     data.mapper_id,
-    data.mapper_key
+    data.mapping_key
   );
   return res.status(200).json({ value });
 };

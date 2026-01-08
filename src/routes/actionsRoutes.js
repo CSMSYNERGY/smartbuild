@@ -8,6 +8,7 @@ import {
   getMapperValue,
   getMappers,
   updateMapper,
+  getUpdateMapperDynamicFields,
 } from "../controllers/actionsController.js";
 const router = express.Router();
 
@@ -18,6 +19,7 @@ router.post("/update-opportunity", updateOpportunityAction);
 router.post("/opportunity-custom-fields", getOpportunityCustomFields);
 router.post("/get-mapper-value", getMapperValue);
 router.post("/update-mapper", updateMapper);
+router.post("/update-mapper-dynamic-fields", getUpdateMapperDynamicFields);
 router.get("/get-mappers", getMappers);
 
 export default router;
