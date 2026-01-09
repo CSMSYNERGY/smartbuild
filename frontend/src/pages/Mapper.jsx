@@ -12,6 +12,9 @@ import {
   Box,
   CopyButton,
   Tooltip,
+  Modal,
+  Code,
+  Divider,
 } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -23,8 +26,9 @@ import {
   IconId,
   IconCategory,
   IconKey,
+  IconQuestionMark,
 } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import CustomMapperEditor from "../components/mappers/CustomMapperEditor";
 import NonDynamicMapperEditor from "../components/mappers/NonDynamicMapperEditor";
@@ -42,6 +46,15 @@ export default function Mapper() {
   const [success, setSuccess] = useState(null);
   const [editingName, setEditingName] = useState(false);
   const [mapperName, setMapperName] = useState("");
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+
+  // Sort objectConfiguration keys by their numeric values
+  const sortedConfigEntries = useMemo(() => {
+    if (!mapper?.objectConfiguration) return [];
+    return Object.entries(mapper.objectConfiguration).sort(
+      ([, a], [, b]) => Number(a) - Number(b)
+    );
+  }, [mapper?.objectConfiguration]);
 
   useEffect(() => {
     fetchMapper();
@@ -317,13 +330,30 @@ export default function Mapper() {
       {/* Value Properties Info */}
       {mapper.objectConfiguration && Object.keys(mapper.objectConfiguration).length > 0 && (
         <Paper withBorder radius="md" p="md">
-          <Text size="xs" fw={500} c="dimmed" tt="uppercase" mb="xs">
-            Value Properties
-          </Text>
+          <Group justify="space-between" align="flex-start" mb="sm">
+            <Box>
+              <Text size="xs" fw={500} c="dimmed" tt="uppercase" mb={4}>
+                Value Properties
+              </Text>
+              <Text size="xs" c="dimmed">
+                These are the value fields defined for this mapper. Each mapping will store values for these properties.
+              </Text>
+            </Box>
+            <Tooltip label="How to use in actions">
+              <ActionIcon
+                variant="light"
+                color="blue"
+                size="sm"
+                onClick={() => setHelpModalOpen(true)}
+              >
+                <IconQuestionMark size={14} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
           <Group gap="xs">
-            {Object.entries(mapper.objectConfiguration).map(([propName, label]) => (
-              <Badge key={propName} variant="outline" size="sm">
-                {propName}: {label}
+            {sortedConfigEntries.map(([propName, label]) => (
+              <Badge key={propName} variant="outline" size="sm" style={{ textTransform: "none" }}>
+                {label}: {propName}
               </Badge>
             ))}
           </Group>
@@ -397,6 +427,58 @@ export default function Mapper() {
           )}
         </Stack>
       </Paper>
+
+      {/* Help Modal */}
+      <Modal
+        opened={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+        title={
+          <Group gap="xs">
+            <IconQuestionMark size={20} />
+            <Text fw={600}>Using Value Properties in Actions</Text>
+          </Group>
+        }
+        size="lg"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            When using the <strong>Get Mapping Value</strong> action, you can access individual property values using dot notation with the action output.
+          </Text>
+          
+          <Divider />
+          
+          <Box>
+            <Text size="sm" fw={600} mb="xs">
+              How to Access Properties:
+            </Text>
+            <Text size="sm" c="dimmed" mb="sm">
+              Use <Code>{"{{action.X}}"}</Code> where X is the property number (1, 2, 3, etc.)
+            </Text>
+          </Box>
+
+          {sortedConfigEntries.length > 0 && (
+            <Paper p="md" radius="md" bg="gray.0">
+              <Text size="sm" fw={600} mb="sm">
+                Example for this mapper:
+              </Text>
+              <Stack gap="xs">
+                {sortedConfigEntries.map(([propName, label]) => (
+                  <Group key={propName} gap="sm">
+                    <Code>{`{{action.${label}}}`}</Code>
+                    <Text size="sm" c="dimmed">→ Returns value of "{propName}"</Text>
+                  </Group>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+
+          <Alert variant="light" color="blue" title="Tip">
+            <Text size="sm">
+              The property numbers correspond to the order they were defined when creating the mapper.
+            </Text>
+          </Alert>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

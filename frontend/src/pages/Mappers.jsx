@@ -14,7 +14,6 @@ import {
   Badge,
   Box,
   Tooltip,
-  TagsInput,
 } from "@mantine/core";
 import {
   IconSearch,
@@ -23,6 +22,7 @@ import {
   IconAlertCircle,
   IconCheck,
   IconMapPin,
+  IconX,
 } from "@tabler/icons-react";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -45,6 +45,7 @@ export default function Mappers() {
   const [createName, setCreateName] = useState("");
   const [createType, setCreateType] = useState("");
   const [createObjectProperties, setCreateObjectProperties] = useState([]);
+  const [propertyInput, setPropertyInput] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Delete confirmation modal state
@@ -160,6 +161,7 @@ export default function Mappers() {
       setCreateName("");
       setCreateType("");
       setCreateObjectProperties([]);
+      setPropertyInput("");
       await fetchMappers();
     } catch (err) {
       setError(err.message || "Failed to create mapper");
@@ -363,6 +365,7 @@ export default function Mappers() {
           setCreateName("");
           setCreateType("");
           setCreateObjectProperties([]);
+          setPropertyInput("");
         }}
         title={
           <Group gap="xs">
@@ -389,29 +392,82 @@ export default function Mappers() {
             onChange={setCreateType}
             required
           />
-          <TagsInput
-            label="Value Properties"
-            description="Define the property names for mapping values (max 10). Press Enter to add each property."
-            placeholder="Type property name and press Enter..."
-            value={createObjectProperties}
-            onChange={setCreateObjectProperties}
-            maxTags={10}
-            required
-          />
-          {createObjectProperties.length > 0 && (
-            <Paper p="sm" radius="md" bg="gray.0">
-              <Text size="xs" c="dimmed" mb="xs">
-                Preview: Each mapping will have these value properties:
-              </Text>
-              <Group gap="xs">
+          <Box>
+            <Text size="sm" fw={500} mb={4}>
+              Value Properties <Text component="span" c="red">*</Text>
+            </Text>
+            <Text size="xs" c="dimmed" mb="xs">
+              Define the property names for mapping values (max 10). Press Enter or click Add.
+            </Text>
+            <Group gap="xs">
+              <TextInput
+                placeholder="Enter property name..."
+                value={propertyInput}
+                onChange={(e) => setPropertyInput(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const trimmed = propertyInput.trim();
+                    if (
+                      trimmed &&
+                      !createObjectProperties.includes(trimmed) &&
+                      createObjectProperties.length < 10
+                    ) {
+                      setCreateObjectProperties([...createObjectProperties, trimmed]);
+                      setPropertyInput("");
+                    }
+                  }
+                }}
+                style={{ flex: 1 }}
+                disabled={createObjectProperties.length >= 10}
+              />
+              <Button
+                variant="light"
+                onClick={() => {
+                  const trimmed = propertyInput.trim();
+                  if (
+                    trimmed &&
+                    !createObjectProperties.includes(trimmed) &&
+                    createObjectProperties.length < 10
+                  ) {
+                    setCreateObjectProperties([...createObjectProperties, trimmed]);
+                    setPropertyInput("");
+                  }
+                }}
+                disabled={!propertyInput.trim() || createObjectProperties.length >= 10}
+              >
+                Add
+              </Button>
+            </Group>
+            {createObjectProperties.length > 0 && (
+              <Group gap="xs" mt="sm">
                 {createObjectProperties.map((prop, index) => (
-                  <Badge key={prop} variant="light" size="sm">
-                    {prop}: {String(index + 1)}
+                  <Badge
+                    key={prop}
+                    variant="light"
+                    size="lg"
+                    rightSection={
+                      <ActionIcon
+                        size="xs"
+                        variant="transparent"
+                        c="gray"
+                        onClick={() =>
+                          setCreateObjectProperties(
+                            createObjectProperties.filter((p) => p !== prop)
+                          )
+                        }
+                      >
+                        <IconX size={12} />
+                      </ActionIcon>
+                    }
+                    style={{ paddingRight: 4, textTransform: "none" }}
+                  >
+                    {String(index + 1)}: {prop}
                   </Badge>
                 ))}
               </Group>
-            </Paper>
-          )}
+            )}
+          </Box>
           <Group justify="flex-end" mt="md">
             <Button
               variant="light"
@@ -420,6 +476,7 @@ export default function Mappers() {
                 setCreateName("");
                 setCreateType("");
                 setCreateObjectProperties([]);
+                setPropertyInput("");
               }}
             >
               Cancel
