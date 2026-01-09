@@ -203,7 +203,7 @@ export const createOrEditSmartbuildJob = async (req, res) => {
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(data);
+  const { isCreate, modelID, jobID, assignedUser } = getCreateOrEditJobMetaData(data);
   const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
 
   const cleanedBody = removeProcessedKeys(data);
@@ -213,6 +213,7 @@ export const createOrEditSmartbuildJob = async (req, res) => {
     smartbuildAuthentication.accessToken,
     isCreate ? "0" : jobID,
     modelID,
+    assignedUser,
     convertedBody
   );
   return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });

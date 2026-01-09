@@ -85,15 +85,16 @@ export const getSmartbuildTokenFromRefreshToken = async (refreshToken) => {
   }
 };
 
-export const createOrEditJob = async (accessToken, jobId, modelID, body) => {
+export const createOrEditJob = async (accessToken, jobId, modelID, assignedUser, body) => {
   var model =
     jobId === "0"
       ? await getStartingModel(accessToken, modelID)
       : await getExistingModel(accessToken, jobId);
   var modelAnswers = setInputAnswers(model, body);
-  var jobRequest = await createOrEditJobRequest(
+  const jobRequest = await createOrEditJobRequest(
     accessToken,
     jobId,
+    assignedUser,
     modelAnswers
   );
   return jobRequest;
@@ -171,8 +172,8 @@ function setInputAnswers(modelAnswers, inputAnswers) {
   return modelAnswers;
 }
 
-async function createOrEditJobRequest(accessToken, jobId, modelAnswers) {
-  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/SetJobDataModel?jobId=${jobId}`;
+async function createOrEditJobRequest(accessToken, jobId, assignedUser, modelAnswers) {
+  const url = `${process.env.SMARTBUILD_BASE_URL}/api/V2/SetJobDataModel?jobId=${jobId}${assignedUser ? `&assignedUserOverride=${encodeURIComponent(assignedUser)}` : ""}`;
 
   try {
     const postResponse = await axios.post(url, modelAnswers, {
@@ -376,6 +377,7 @@ export const getCreateOrEditJobMetaData = (body) => {
     isCreate: false,
     modelID: null, // modelID is ignored for edit requests
     jobID: body.jobID,
+    assignedUser: body.assignedUser || null,
   };
 };
 
@@ -418,6 +420,7 @@ export const removeProcessedKeys = (data) => {
   delete updatedData.modelID;
   delete updatedData.username;
   delete updatedData.password;
+  delete updatedData.assignedUser;
   return updatedData;
 };
 
