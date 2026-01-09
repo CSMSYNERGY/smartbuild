@@ -314,6 +314,22 @@ export default function Mapper() {
         </Group>
       </Paper>
 
+      {/* Value Properties Info */}
+      {mapper.objectConfiguration && Object.keys(mapper.objectConfiguration).length > 0 && (
+        <Paper withBorder radius="md" p="md">
+          <Text size="xs" fw={500} c="dimmed" tt="uppercase" mb="xs">
+            Value Properties
+          </Text>
+          <Group gap="xs">
+            {Object.entries(mapper.objectConfiguration).map(([propName, label]) => (
+              <Badge key={propName} variant="outline" size="sm">
+                {propName}: {label}
+              </Badge>
+            ))}
+          </Group>
+        </Paper>
+      )}
+
       {error && (
         <Alert
           icon={<IconAlertCircle size="1rem" />}
@@ -347,7 +363,9 @@ export default function Mapper() {
           {isCustom && (
             <CustomMapperEditor
               mapper={mapper}
+              objectConfiguration={mapper.objectConfiguration || {}}
               onAddKeyValue={handleAddKeyValue}
+              onUpdateValue={handleUpdateValue}
               onRemoveKey={handleRemoveKey}
               saving={saving}
             />
@@ -357,6 +375,7 @@ export default function Mapper() {
             <NonDynamicMapperEditor
               mapper={mapper}
               typeInfo={typeInfo}
+              objectConfiguration={mapper.objectConfiguration || {}}
               onAddKeyValue={handleAddKeyValue}
               onUpdateValue={handleUpdateValue}
               onRemoveKey={handleRemoveKey}
@@ -369,6 +388,7 @@ export default function Mapper() {
               mapper={mapper}
               mapperId={mapperId}
               typeInfo={typeInfo}
+              objectConfiguration={mapper.objectConfiguration || {}}
               onAddKeyValue={handleAddKeyValue}
               onUpdateValue={handleUpdateValue}
               onRemoveKey={handleRemoveKey}

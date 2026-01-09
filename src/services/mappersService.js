@@ -60,7 +60,7 @@ export const mapperTypes = {
 };
 
 export const getMapperProperty = (index) => {
-  return `Value ${index + 1}`;
+  return `${index + 1}`;
 };
 
 export const mapperObjects = {
@@ -178,6 +178,8 @@ export const updateMapperForLocation = async (locationId, mapperId, mapper) => {
   // Only save allowed fields - options and dynamic are computed on-the-fly
   const sanitizedMapper = {
     name: mapper.name,
+    type: mapper.type,
+    objectConfiguration: mapper.objectConfiguration,
     map: mapper.map || {},
   };
   await saveMapperItem(locationId, mapperId, sanitizedMapper, false);

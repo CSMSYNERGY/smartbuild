@@ -95,7 +95,7 @@ export const getUpdateMapperDynamicFields = async (req, res) => {
     const objectConfiguration = mapper.objectConfiguration;
     Object.keys(objectConfiguration)
       .sort((a, b) =>
-        objectConfiguration[a].localeCompare(objectConfiguration[b])
+        Number(objectConfiguration[a]) - Number(objectConfiguration[b])
       )
       .forEach((key) => {
         const mapperValueInput = {
@@ -128,10 +128,14 @@ export const getGetMappingValueDynamicFields = async (req, res) => {
   const mapper = await getMapperForLocation(locationId, mapper_id);
   const mapperTypes = await getMapperTypes();
   const mapperType = mapperTypes[mapper.type];
-  let description = "";
-  Object.keys(mapper.objectConfiguration).forEach((key) => {
-    description += `${key} (${mapper.objectConfiguration[key]})`;
-  });
+  let description = " ";
+  Object.keys(mapper.objectConfiguration)
+    .sort((a, b) =>
+      Number(mapper.objectConfiguration[a]) - Number(mapper.objectConfiguration[b])
+    )
+    .forEach((key) => {
+      description += `${key}:${mapper.objectConfiguration[key]} `;
+    });
   const mapperKeyInput = {
     field: "mapping_key",
     title: `Mapping Key (${mapperType.name} ${

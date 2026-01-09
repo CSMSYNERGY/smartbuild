@@ -14,6 +14,7 @@ import {
   Badge,
   Box,
   Tooltip,
+  TagsInput,
 } from "@mantine/core";
 import {
   IconSearch,
@@ -43,6 +44,7 @@ export default function Mappers() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createType, setCreateType] = useState("");
+  const [createObjectProperties, setCreateObjectProperties] = useState([]);
   const [creating, setCreating] = useState(false);
 
   // Delete confirmation modal state
@@ -120,6 +122,16 @@ export default function Mappers() {
       return;
     }
 
+    if (createObjectProperties.length === 0) {
+      setError("Please add at least one value property");
+      return;
+    }
+
+    if (createObjectProperties.length > 10) {
+      setError("Maximum 10 value properties allowed");
+      return;
+    }
+
     setCreating(true);
     setError(null);
 
@@ -133,6 +145,7 @@ export default function Mappers() {
         body: JSON.stringify({
           name: createName.trim(),
           type: createType,
+          objectProperties: createObjectProperties,
         }),
       });
 
@@ -146,6 +159,7 @@ export default function Mappers() {
       setCreateModalOpen(false);
       setCreateName("");
       setCreateType("");
+      setCreateObjectProperties([]);
       await fetchMappers();
     } catch (err) {
       setError(err.message || "Failed to create mapper");
@@ -348,6 +362,7 @@ export default function Mappers() {
           setCreateModalOpen(false);
           setCreateName("");
           setCreateType("");
+          setCreateObjectProperties([]);
         }}
         title={
           <Group gap="xs">
@@ -355,6 +370,7 @@ export default function Mappers() {
             <Text fw={600}>Create New Mapper</Text>
           </Group>
         }
+        size="lg"
       >
         <Stack gap="md">
           <TextInput
@@ -373,6 +389,29 @@ export default function Mappers() {
             onChange={setCreateType}
             required
           />
+          <TagsInput
+            label="Value Properties"
+            description="Define the property names for mapping values (max 10). Press Enter to add each property."
+            placeholder="Type property name and press Enter..."
+            value={createObjectProperties}
+            onChange={setCreateObjectProperties}
+            maxTags={10}
+            required
+          />
+          {createObjectProperties.length > 0 && (
+            <Paper p="sm" radius="md" bg="gray.0">
+              <Text size="xs" c="dimmed" mb="xs">
+                Preview: Each mapping will have these value properties:
+              </Text>
+              <Group gap="xs">
+                {createObjectProperties.map((prop, index) => (
+                  <Badge key={prop} variant="light" size="sm">
+                    {prop}: {String(index + 1)}
+                  </Badge>
+                ))}
+              </Group>
+            </Paper>
+          )}
           <Group justify="flex-end" mt="md">
             <Button
               variant="light"
@@ -380,6 +419,7 @@ export default function Mappers() {
                 setCreateModalOpen(false);
                 setCreateName("");
                 setCreateType("");
+                setCreateObjectProperties([]);
               }}
             >
               Cancel
@@ -387,7 +427,7 @@ export default function Mappers() {
             <Button
               onClick={handleCreateMapper}
               loading={creating}
-              disabled={!createName.trim() || !createType}
+              disabled={!createName.trim() || !createType || createObjectProperties.length === 0}
             >
               Create Mapper
             </Button>
