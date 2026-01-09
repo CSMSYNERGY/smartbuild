@@ -23,7 +23,7 @@ import {
   IconEdit,
   IconCheck,
 } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ObjectViewModal from "./ObjectViewModal";
 
 // Convert camelCase to Title Case (e.g., "contactName" -> "Contact Name")
@@ -39,26 +39,33 @@ export default function DynamicMapperEditor({
   mapper,
   mapperId,
   typeInfo,
+  objectConfiguration,
   onAddKeyValue,
   onUpdateValue,
   onRemoveKey,
   saving,
 }) {
   const [dynamicObjectId, setDynamicObjectId] = useState("");
-  const [dynamicValue, setDynamicValue] = useState("");
+  const [valueInputs, setValueInputs] = useState({});
   const [dynamicSearchQuery, setDynamicSearchQuery] = useState("");
   const [dynamicSearchResults, setDynamicSearchResults] = useState([]);
   const [dynamicSearchLoading, setDynamicSearchLoading] = useState(false);
-  const [dynamicKeySearchModalOpen, setDynamicKeySearchModalOpen] = useState(false);
+  const [dynamicKeySearchModalOpen, setDynamicKeySearchModalOpen] =
+    useState(false);
   const [viewingObject, setViewingObject] = useState(null);
   const [viewingObjectData, setViewingObjectData] = useState(null);
   const [viewingObjectLoading, setViewingObjectLoading] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
-  const [editingValue, setEditingValue] = useState("");
+  const [editingValues, setEditingValues] = useState({});
 
   const typeLabel = typeInfo?.name || mapper.type;
   const objectKey = typeInfo?.object?.key || "id";
   const availableFields = typeInfo?.object?.availableFields || ["id", "name"];
+
+  const propertyKeys = useMemo(
+    () => Object.keys(objectConfiguration || {}),
+    [objectConfiguration]
+  );
 
   const searchDynamicObjects = async (query, page = 1) => {
     if (query.length < 3) {
@@ -116,8 +123,20 @@ export default function DynamicMapperEditor({
     setDynamicSearchResults([]);
   };
 
+  const handleValueInputChange = (propKey, value) => {
+    setValueInputs((prev) => ({ ...prev, [propKey]: value }));
+  };
+
   const handleAdd = () => {
-    if (!dynamicObjectId || !dynamicValue.trim()) {
+    if (!dynamicObjectId) {
+      return;
+    }
+
+    // Check if all properties have values
+    const hasAllValues = propertyKeys.every(
+      (key) => valueInputs[key]?.trim()
+    );
+    if (!hasAllValues) {
       return;
     }
 
@@ -125,9 +144,15 @@ export default function DynamicMapperEditor({
       return;
     }
 
-    onAddKeyValue(dynamicObjectId, dynamicValue.trim());
+    // Build value object
+    const valueObject = {};
+    propertyKeys.forEach((key) => {
+      valueObject[key] = valueInputs[key].trim();
+    });
+
+    onAddKeyValue(dynamicObjectId, valueObject);
     setDynamicObjectId("");
-    setDynamicValue("");
+    setValueInputs({});
   };
 
   const handleViewDynamicObject = async (key) => {
@@ -172,28 +197,44 @@ export default function DynamicMapperEditor({
 
   const handleStartEdit = (key, currentValue) => {
     setEditingKey(key);
-    setEditingValue(String(currentValue));
+    setEditingValues(currentValue || {});
   };
 
   const handleSaveEdit = () => {
-    if (!editingValue.trim()) {
+    const hasAllValues = propertyKeys.every(
+      (key) => editingValues[key]?.trim()
+    );
+    if (!hasAllValues) {
       return;
     }
 
-    onUpdateValue(editingKey, editingValue.trim());
+    const valueObject = {};
+    propertyKeys.forEach((key) => {
+      valueObject[key] = editingValues[key].trim();
+    });
+
+    onUpdateValue(editingKey, valueObject);
     setEditingKey(null);
-    setEditingValue("");
+    setEditingValues({});
   };
 
   const handleCancelEdit = () => {
     setEditingKey(null);
-    setEditingValue("");
+    setEditingValues({});
+  };
+
+  const handleEditValueChange = (propKey, value) => {
+    setEditingValues((prev) => ({ ...prev, [propKey]: value }));
   };
 
   const mapEntries = Object.entries(mapper.map || {});
   const filteredResults = dynamicSearchResults.filter(
     (item) => !(item.id in (mapper.map || {}))
   );
+
+  const isAddDisabled =
+    !dynamicObjectId ||
+    !propertyKeys.every((key) => valueInputs[key]?.trim());
 
   return (
     <>
@@ -206,8 +247,8 @@ export default function DynamicMapperEditor({
             "linear-gradient(135deg, var(--mantine-color-blue-0) 0%, var(--mantine-color-grape-0) 100%)",
         }}
       >
-        <Group align="flex-end" gap="md">
-          <Box style={{ flex: 1 }}>
+        <Stack gap="md">
+          <Box>
             <Text size="xs" fw={500} c="dimmed" mb={4}>
               Search {typeLabel}
             </Text>
@@ -234,26 +275,31 @@ export default function DynamicMapperEditor({
               }
             />
           </Box>
-          <Box style={{ flex: 1 }}>
-            <Text size="xs" fw={500} c="dimmed" mb={4}>
-              Mapped Value
-            </Text>
-            <TextInput
-              placeholder="Enter value..."
-              value={dynamicValue}
-              onChange={(e) => setDynamicValue(e.currentTarget.value)}
-            />
-          </Box>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={handleAdd}
-            loading={saving}
-            disabled={!dynamicObjectId || !dynamicValue.trim()}
-            variant="filled"
-          >
-            Add Mapping
-          </Button>
-        </Group>
+          <Group grow>
+            {propertyKeys.map((propKey) => (
+              <TextInput
+                key={propKey}
+                label={objectConfiguration[propKey] || propKey}
+                placeholder={`Enter ${propKey}...`}
+                value={valueInputs[propKey] || ""}
+                onChange={(e) =>
+                  handleValueInputChange(propKey, e.currentTarget.value)
+                }
+              />
+            ))}
+          </Group>
+          <Group justify="flex-end">
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={handleAdd}
+              loading={saving}
+              disabled={isAddDisabled}
+              variant="filled"
+            >
+              Add Mapping
+            </Button>
+          </Group>
+        </Stack>
       </Paper>
 
       {/* Mappings List */}
@@ -275,7 +321,7 @@ export default function DynamicMapperEditor({
             tt="uppercase"
             style={{ letterSpacing: 0.5 }}
           >
-            Mapped Value
+            Mapped Values
           </Text>
         </Group>
 
@@ -310,61 +356,75 @@ export default function DynamicMapperEditor({
                     />
                   </Box>
 
-                  {/* Value */}
-                  <Box style={{ flex: 1, minWidth: 150 }}>
+                  {/* Values */}
+                  <Box style={{ flex: 1, minWidth: 200 }}>
                     {isEditing ? (
-                      <Group gap="xs" wrap="nowrap">
-                        <TextInput
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.currentTarget.value)}
-                          size="sm"
-                          style={{ flex: 1 }}
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveEdit();
-                            if (e.key === "Escape") handleCancelEdit();
-                          }}
-                        />
-                        <Tooltip label="Save">
-                          <ActionIcon
-                            color="green"
-                            variant="filled"
-                            size="md"
-                            onClick={handleSaveEdit}
-                            loading={saving}
-                          >
-                            <IconCheck size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="Cancel">
-                          <ActionIcon
-                            color="gray"
-                            variant="light"
-                            size="md"
-                            onClick={handleCancelEdit}
-                          >
-                            <IconX size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Group>
+                      <Stack gap="xs">
+                        <Group grow>
+                          {propertyKeys.map((propKey) => (
+                            <TextInput
+                              key={propKey}
+                              label={objectConfiguration[propKey] || propKey}
+                              size="sm"
+                              value={editingValues[propKey] || ""}
+                              onChange={(e) =>
+                                handleEditValueChange(
+                                  propKey,
+                                  e.currentTarget.value
+                                )
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveEdit();
+                                if (e.key === "Escape") handleCancelEdit();
+                              }}
+                            />
+                          ))}
+                        </Group>
+                        <Group justify="flex-end" gap="xs">
+                          <Tooltip label="Save">
+                            <ActionIcon
+                              color="green"
+                              variant="filled"
+                              size="md"
+                              onClick={handleSaveEdit}
+                              loading={saving}
+                            >
+                              <IconCheck size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Cancel">
+                            <ActionIcon
+                              color="gray"
+                              variant="light"
+                              size="md"
+                              onClick={handleCancelEdit}
+                            >
+                              <IconX size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Stack>
                     ) : (
-                      <Paper
-                        p="xs"
-                        radius="sm"
-                        bg="gray.0"
-                        style={{ display: "inline-block" }}
-                      >
-                        <Text fw={500} size="sm" ff="monospace">
-                          {String(value)}
-                        </Text>
-                      </Paper>
+                      <Group gap="xs" wrap="wrap">
+                        {propertyKeys.map((propKey) => (
+                          <Badge
+                            key={propKey}
+                            variant="light"
+                            size="lg"
+                            style={{ textTransform: "none" }}
+                          >
+                            {objectConfiguration[propKey] || propKey}:{" "}
+                            {value?.[propKey] || "-"}
+                          </Badge>
+                        ))}
+                      </Group>
                     )}
                   </Box>
 
                   {/* Actions */}
                   {!isEditing && (
                     <Group gap="xs" style={{ flex: "0 0 auto" }}>
-                      <Tooltip label="Edit value">
+                      <Tooltip label="Edit values">
                         <ActionIcon
                           color="blue"
                           variant="light"

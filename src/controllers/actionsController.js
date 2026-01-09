@@ -92,13 +92,21 @@ export const getUpdateMapperDynamicFields = async (req, res) => {
   };
   const inputs = [mapperKeyInput];
   if (operation_type === "update") {
-    const mapperValueInput = {
-      field: "mapping_value",
-      title: "Mapping Value",
-      fieldType: "string",
-      required: true,
-    };
-    inputs.push(mapperValueInput);
+    const objectConfiguration = mapper.objectConfiguration;
+    Object.keys(objectConfiguration)
+      .sort((a, b) =>
+        Number(objectConfiguration[a]) - Number(objectConfiguration[b])
+      )
+      .forEach((key) => {
+        const mapperValueInput = {
+          field: key,
+          title: `${key} (${objectConfiguration[key]})`,
+          fieldType: "string",
+          required: false,
+          description: "test",
+        };
+        inputs.push(mapperValueInput);
+      });
   }
   return res.status(200).json({
     inputs: [{ section: "Mapping information", fields: inputs }],
@@ -120,12 +128,21 @@ export const getGetMappingValueDynamicFields = async (req, res) => {
   const mapper = await getMapperForLocation(locationId, mapper_id);
   const mapperTypes = await getMapperTypes();
   const mapperType = mapperTypes[mapper.type];
+  let description = " ";
+  Object.keys(mapper.objectConfiguration)
+    .sort((a, b) =>
+      Number(mapper.objectConfiguration[a]) - Number(mapper.objectConfiguration[b])
+    )
+    .forEach((key) => {
+      description += `${key}:${mapper.objectConfiguration[key]} `;
+    });
   const mapperKeyInput = {
     field: "mapping_key",
     title: `Mapping Key (${mapperType.name} ${
       mapperType.object?.key?.toUpperCase() || ""
     })`,
     fieldType: "string",
+    description,
     required: true,
   };
   const inputs = [mapperKeyInput];
@@ -217,13 +234,14 @@ export const getMapperValue = async (req, res) => {
     data.mapper_id,
     data.mapping_key
   );
-  return res.status(200).json({ value });
+  return res.status(200).json({ ...value });
 };
 
 export const updateMapper = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
   const data = sanitizeInput(req.body?.data || req.body);
-  const { mapper_id, operation_type, mapping_key, mapping_value } = data;
+  const { mapper_id, operation_type, mapping_key, ...inner_value_map } = data;
+
   if (!mapper_id || !operation_type || !mapping_key) {
     throw new AppError(
       "Missing required fields: mapper_id, operation_type, mapping_key",
@@ -231,20 +249,27 @@ export const updateMapper = async (req, res) => {
       ErrorCodes.BAD_REQUEST
     );
   }
-  if (operation_type === "update" && !mapping_value) {
-    throw new AppError(
-      "Missing required field: mapping_value",
-      400,
-      ErrorCodes.BAD_REQUEST
-    );
-  }
 
   const mapper = await getMapperForLocation(locationId, mapper_id);
+  const configKeys = Object.keys(mapper.objectConfiguration);
   let message = "";
-  let oldValue = mapper.map[mapping_key] || "";
   if (operation_type === "update") {
-    mapper.map[mapping_key] = mapping_value;
-    message = `Mapping key ${mapping_key} updated successfully to ${mapping_value}`;
+    const valueObj = mapper.map[mapping_key] || {};
+    const validKeys = Object.keys(inner_value_map).filter((innerKey) =>
+      configKeys.includes(innerKey)
+    );
+    validKeys.forEach((innerKey) => {
+      const value = inner_value_map[innerKey];
+      if (
+        value != null &&
+        typeof value === "string" &&
+        value.trim().length > 0
+      ) {
+        valueObj[innerKey] = value;
+      }
+    });
+    mapper.map[mapping_key] = valueObj;
+    message = `Mapping key ${mapping_key} updated successfully to ${valueObj}`;
   } else if (operation_type === "delete") {
     delete mapper.map[mapping_key];
     message = `Mapping key ${mapping_key} deleted successfully`;
@@ -254,12 +279,10 @@ export const updateMapper = async (req, res) => {
     mapper_id,
     operation_type,
     mapping_key,
-    mapping_value,
-    oldValue,
     message,
   });
   await updateMapperForLocation(locationId, mapper_id, mapper);
-  return res.status(200).json({ message, oldValue });
+  return res.status(200).json({ message });
 };
 
 export const getMappers = async (req, res) => {
