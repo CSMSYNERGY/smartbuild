@@ -94,8 +94,9 @@ export const getUpdateMapperDynamicFields = async (req, res) => {
   if (operation_type === "update") {
     const objectConfiguration = mapper.objectConfiguration;
     Object.keys(objectConfiguration)
-      .sort((a, b) =>
-        Number(objectConfiguration[a]) - Number(objectConfiguration[b])
+      .sort(
+        (a, b) =>
+          Number(objectConfiguration[a]) - Number(objectConfiguration[b])
       )
       .forEach((key) => {
         const mapperValueInput = {
@@ -130,8 +131,10 @@ export const getGetMappingValueDynamicFields = async (req, res) => {
   const mapperType = mapperTypes[mapper.type];
   let description = " ";
   Object.keys(mapper.objectConfiguration)
-    .sort((a, b) =>
-      Number(mapper.objectConfiguration[a]) - Number(mapper.objectConfiguration[b])
+    .sort(
+      (a, b) =>
+        Number(mapper.objectConfiguration[a]) -
+        Number(mapper.objectConfiguration[b])
     )
     .forEach((key) => {
       description += `${key}:${mapper.objectConfiguration[key]} `;
@@ -203,7 +206,8 @@ export const createOrEditSmartbuildJob = async (req, res) => {
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const { isCreate, modelID, jobID, assignedUser } = getCreateOrEditJobMetaData(data);
+  const { isCreate, modelID, jobID, assignedUser } =
+    getCreateOrEditJobMetaData(data);
   const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
 
   const cleanedBody = removeProcessedKeys(data);
@@ -235,7 +239,7 @@ export const getMapperValue = async (req, res) => {
     data.mapper_id,
     data.mapping_key
   );
-  return res.status(200).json({ ...value, "Testing1": "What the hell? This shouldnt work", "Testing_2": "What the hell? This shouldnt work" });
+  return res.status(200).json({ ...value });
 };
 
 export const updateMapper = async (req, res) => {
