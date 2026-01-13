@@ -356,6 +356,7 @@ export const retrieveSmartbuildCustomFieldsForRetrieval = async (
 
 export const getCreateOrEditJobMetaData = (body) => {
   const isCreate = !body.jobID || body.jobID === "0";
+  const assignedUser = body.assignedUser || null;
 
   if (isCreate) {
     // For create requests, modelID must be present
@@ -370,6 +371,7 @@ export const getCreateOrEditJobMetaData = (body) => {
       isCreate: true,
       modelID: body.modelID,
       jobID: "0",
+      assignedUser,
     };
   }
 
@@ -377,7 +379,7 @@ export const getCreateOrEditJobMetaData = (body) => {
     isCreate: false,
     modelID: null, // modelID is ignored for edit requests
     jobID: body.jobID,
-    assignedUser: body.assignedUser || null,
+    assignedUser,
   };
 };
 
