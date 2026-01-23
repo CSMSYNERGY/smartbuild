@@ -13,6 +13,7 @@ import {
   computeSubscriptionEndDate,
   isPlanValid,
   parseOrderId,
+  createOrderId,
 } from "../utils/paymentUtils.js";
 import logger from "../config/logger.js";
 import {
@@ -309,15 +310,15 @@ export const createSubscription = async (user, paymentToken, planId) => {
     paymentToken,
     planId,
     email: user.email,
-    orderId: `sub-${user.locationId}-${planId}-${Date.now()}`,
+    orderId: createOrderId(user.locationId, planId),
   });
 
   if (process.env.NODE_ENV === "development") {
     logger.info(`Subscription request sent and parsed:`, parsed);
   }
 
-  const subscriptionId = parsed.subscription_id;
-  const orderId = parsed.orderid;
+  const subscriptionId = parsed?.subscription_id;
+  const orderId = parsed?.orderid;
 
   if (!subscriptionId) {
     throw new AppError(
@@ -364,11 +365,6 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
   logger.info(
     `Deposyt webhook received for eventType: ${eventType}`,
     eventBody
-  );
-
-  // Debug: Log plan information
-  logger.info(
-    `Plan check - plan exists: ${!!eventBody?.plan}, plan.id: ${eventBody?.plan?.id}, configured plans: ${PlansConfig.PLANS.map((p) => p.id).join(", ")}`
   );
 
   // Make sure this is one of *your* plans (you already implemented this)

@@ -10,5 +10,13 @@ export const PlansConfig = {
       frequency: "month",
       description: "Construction Platform Integrations Monthly Subscription",
     },
+    {
+      id: "CPI_YEARLY",
+      name: "Construction Platform Integrations Yearly Subscription",
+      amount: 2500,
+      currency: "USD",
+      frequency: "year",
+      description: "Construction Platform Integrations Yearly Subscription",
+    }
   ],
 };
