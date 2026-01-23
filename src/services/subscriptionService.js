@@ -361,6 +361,16 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
     return;
   }
 
+  logger.info(
+    `Deposyt webhook received for eventType: ${eventType}`,
+    eventBody
+  );
+
+  // Debug: Log plan information
+  logger.info(
+    `Plan check - plan exists: ${!!eventBody?.plan}, plan.id: ${eventBody?.plan?.id}, configured plans: ${PlansConfig.PLANS.map((p) => p.id).join(", ")}`
+  );
+
   // Make sure this is one of *your* plans (you already implemented this)
   if (!isPlanValid(eventBody, PlansConfig.PLANS)) {
     logger.info(
@@ -368,11 +378,6 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
     );
     return;
   }
-
-  logger.info(
-    `Deposyt webhook received for eventType: ${eventType}`,
-    eventBody
-  );
 
   switch (eventType) {
     case "recurring.subscription.delete":
