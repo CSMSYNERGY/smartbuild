@@ -41,7 +41,6 @@ export default function Subscription() {
   const paymentDetails = entitlement?.paymentDetails || null;
 
   const isPendingState =
-    status === "pending-cancel" ||
     status === "pending-update-payment" ||
     status === "pending-resume";
 
@@ -120,7 +119,6 @@ export default function Subscription() {
   const getStatusBadge = () => {
     const statusColors = {
       active: "green",
-      "pending-cancel": "yellow",
       cancelled: "red",
       inactive: "gray",
       "pending-update-payment": "yellow",
@@ -129,7 +127,6 @@ export default function Subscription() {
 
     const statusLabels = {
       active: "Active",
-      "pending-cancel": "Pending Cancel",
       cancelled: "Cancelled",
       inactive: "Inactive",
       "pending-update-payment": "Pending Payment Update",
@@ -151,7 +148,6 @@ export default function Subscription() {
     if (!isPendingState) return null;
 
     const messages = {
-      "pending-cancel": "Your subscription cancellation is being processed. Please wait for confirmation.",
       "pending-update-payment": "Your payment update is being processed. Please wait for confirmation.",
       "pending-resume": "Your subscription resumption is being processed. Please wait for confirmation.",
     };

@@ -104,8 +104,8 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
       };
     }
 
-    // 2) Pending-cancel → we know user requested cancel,
-    // but we may not yet have the final end date from webhook.
+    // 2) Pending states (pending-update-payment, pending-resume) → 
+    // we know user requested an action, but it's still being processed.
     if (status.includes("pending")) {
       return {
         status: status,
@@ -174,18 +174,24 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
  * getEntitlementDetailsForLocation already handles all the logic for checking
  * if cancelled subscriptions are past their end date, so we just need to check
  * if the status is "active", "cancelled", or includes "pending".
- * 
+ *
  * @param {string} locationId - The location ID to check
  * @returns {Promise<boolean>} - True if subscription is active, false otherwise
  */
 export const isLocationSubscriptionActive = async (locationId) => {
   try {
-    const entitlementDetails = await getEntitlementDetailsForLocation(locationId);
+    const entitlementDetails = await getEntitlementDetailsForLocation(
+      locationId
+    );
     const status = entitlementDetails.status;
-    
+
     // getEntitlementDetailsForLocation already handles expiry checks for cancelled subscriptions
     // So if status is "active", "cancelled", or includes "pending", subscription is active
-    return status === "active" || status === "cancelled" || status.includes("pending");
+    return (
+      status === "active" ||
+      status === "cancelled" ||
+      status.includes("pending")
+    );
   } catch (error) {
     logger.error(
       `Error checking subscription status for location ${locationId}`,
@@ -235,19 +241,22 @@ export const cancelSubscription = async (user) => {
     );
   }
   const now = Date.now();
-  
+  logger.info(
+    `Pausing subscription ${subscriptionId} for location ${user.locationId}`
+  );
+  await pauseGatewaySubscription(subscriptionId, true);
+
   await saveEntitlement(user.locationId, {
-    status: "pending-cancel",
+    status: "cancelled",
     updatedAt: now,
   });
 
   await saveSubscription(subscriptionId, {
-    status: "pending-cancel",
+    status: "cancelled",
     updatedAt: now,
   });
-  await pauseGatewaySubscription(subscriptionId, true);
 
-  return { ok: true, status: "pending-cancel" };
+  return { ok: true, status: "cancelled" };
 };
 
 export const updatePayment = async (user, paymentToken) => {
