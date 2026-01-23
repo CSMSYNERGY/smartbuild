@@ -24,9 +24,25 @@ export const computeSubscriptionEndDate = (eventBody, existingSub) => {
 };
 
 export const isPlanValid = (eventBody, plans) => {
-  const planId = eventBody?.plan?.id;
+  // First, try to get plan ID from Deposyt's plan object
+  const planIdFromGateway = eventBody?.plan?.id || null;
+  
+  // Fallback: extract plan ID from order_id if available
+  // order_id format: "sub-<locationId>-<planId>-<timestamp...>"
+  const orderId = eventBody?.order_id;
+  let planIdFromOrderId = null;
+  if (orderId) {
+    const parsed = parseOrderId(orderId);
+    planIdFromOrderId = parsed?.planId || null;
+  }
 
+  // Check if either plan ID matches any of our configured plans
+  const planId = planIdFromGateway || planIdFromOrderId;
   return planId ? plans.find((plan) => plan.id === planId) != null : false;
+};
+
+export const createOrderId = (locationId, planId) => {
+  return `sub-${locationId}-${planId}-${Date.now()}`;
 };
 
 export const parseOrderId = (orderId) => {
