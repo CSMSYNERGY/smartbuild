@@ -104,19 +104,7 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
       };
     }
 
-    // 2) Pending states (pending-update-payment, pending-resume) → 
-    // we know user requested an action, but it's still being processed.
-    if (status.includes("pending")) {
-      return {
-        status: status,
-        planId,
-        activeUntil: subscriptionEndMs ?? null,
-        entitlementUserId,
-        subscriptionId: null,
-      };
-    }
-
-    // 3) Cancelled → check if period is still running
+    // 2) Cancelled → check if period is still running
     if (status === "cancelled") {
       if (subscriptionEndMs && subscriptionEndMs > now) {
         // Cancelled but still in paid period
@@ -173,7 +161,7 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
  * Checks if a location has an active subscription (user still has access).
  * getEntitlementDetailsForLocation already handles all the logic for checking
  * if cancelled subscriptions are past their end date, so we just need to check
- * if the status is "active", "cancelled", or includes "pending".
+ * if the status is "active" or "cancelled".
  *
  * @param {string} locationId - The location ID to check
  * @returns {Promise<boolean>} - True if subscription is active, false otherwise
@@ -186,12 +174,8 @@ export const isLocationSubscriptionActive = async (locationId) => {
     const status = entitlementDetails.status;
 
     // getEntitlementDetailsForLocation already handles expiry checks for cancelled subscriptions
-    // So if status is "active", "cancelled", or includes "pending", subscription is active
-    return (
-      status === "active" ||
-      status === "cancelled" ||
-      status.includes("pending")
-    );
+    // So if status is "active" or "cancelled", subscription is active
+    return status === "active" || status === "cancelled";
   } catch (error) {
     logger.error(
       `Error checking subscription status for location ${locationId}`,
@@ -275,6 +259,18 @@ export const updatePayment = async (user, paymentToken) => {
     subscriptionId,
     paymentToken,
     paused: false,
+  });
+
+  const now = Date.now();
+
+  await saveEntitlement(user.locationId, {
+    status: "active",
+    updatedAt: now,
+  });
+
+  await saveSubscription(subscriptionId, {
+    status: "active",
+    updatedAt: now,
   });
 
   return { ok: true };

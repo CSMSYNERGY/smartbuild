@@ -13,7 +13,6 @@ import {
   Box,
 } from "@mantine/core";
 import {
-  IconAlertCircle,
   IconCheck,
   IconCreditCard,
   IconX,
@@ -39,10 +38,6 @@ export default function Subscription() {
   const status = entitlement?.status || "inactive";
   const subscriptionByThisUser = entitlement?.subscriptionByThisUser || false;
   const paymentDetails = entitlement?.paymentDetails || null;
-
-  const isPendingState =
-    status === "pending-update-payment" ||
-    status === "pending-resume";
 
   useEffect(() => {
     fetchPlans();
@@ -121,16 +116,12 @@ export default function Subscription() {
       active: "green",
       cancelled: "red",
       inactive: "gray",
-      "pending-update-payment": "yellow",
-      "pending-resume": "yellow",
     };
 
     const statusLabels = {
       active: "Active",
       cancelled: "Cancelled",
       inactive: "Inactive",
-      "pending-update-payment": "Pending Payment Update",
-      "pending-resume": "Pending Resume",
     };
 
     return (
@@ -144,28 +135,8 @@ export default function Subscription() {
     );
   };
 
-  const renderPendingNotification = () => {
-    if (!isPendingState) return null;
-
-    const messages = {
-      "pending-update-payment": "Your payment update is being processed. Please wait for confirmation.",
-      "pending-resume": "Your subscription resumption is being processed. Please wait for confirmation.",
-    };
-
-    return (
-      <Alert
-        icon={<IconAlertCircle size="1rem" />}
-        title="Action Pending"
-        color="yellow"
-        variant="light"
-      >
-        {messages[status]}
-      </Alert>
-    );
-  };
-
   const renderActiveActions = () => {
-    if (status !== "active" || isPendingState) return null;
+    if (status !== "active") return null;
 
     return (
       <Stack gap="md">
@@ -287,7 +258,7 @@ export default function Subscription() {
   };
 
   const renderInactiveActions = () => {
-    if (status !== "inactive" || isPendingState) return null;
+    if (status !== "inactive") return null;
 
     return (
       <Stack gap="md">
@@ -341,7 +312,7 @@ export default function Subscription() {
   };
 
   const renderCancelledActions = () => {
-    if (status !== "cancelled" || isPendingState) return null;
+    if (status !== "cancelled") return null;
 
     return (
       <Stack gap="md">
@@ -418,8 +389,6 @@ export default function Subscription() {
           {success}
         </Alert>
       )}
-
-      {renderPendingNotification()}
 
       <Paper withBorder shadow="sm" radius="lg" p="lg">
         <Stack gap="md">
