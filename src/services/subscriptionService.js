@@ -233,6 +233,8 @@ export const cancelSubscription = async (user) => {
       ErrorCodes.BAD_REQUEST
     );
   }
+  const now = Date.now();
+  
   await saveEntitlement(user.locationId, {
     status: "pending-cancel",
     updatedAt: now,
@@ -243,8 +245,6 @@ export const cancelSubscription = async (user) => {
     updatedAt: now,
   });
   await pauseGatewaySubscription(subscriptionId, true);
-
-  const now = Date.now();
 
   return { ok: true, status: "pending-cancel" };
 };
