@@ -1,5 +1,6 @@
 // frontend/src/components/PaymentForm.jsx
 import { useEffect, useState } from "react";
+import { fetchWithAuth } from "../../utils/utils";
 import {
   Alert,
   Button,
@@ -102,11 +103,10 @@ export default function PaymentForm({
       const body =
         action === "create" ? { paymentToken, planId } : { paymentToken };
 
-      const res = await fetch(endpoint, {
+      const res = await fetchWithAuth(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        credentials: "include",
       });
 
       if (!res.ok) {

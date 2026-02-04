@@ -23,6 +23,7 @@ import {
 } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
+import { fetchWithAuth } from "../utils/utils";
 import PaymentForm from "../components/payment-form/PaymentForm";
 
 export default function Subscription() {
@@ -47,9 +48,8 @@ export default function Subscription() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/subscription/plans", {
+      const response = await fetchWithAuth("/api/subscription/plans", {
         method: "GET",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to fetch plans");
       const data = await response.json();
@@ -66,12 +66,9 @@ export default function Subscription() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await fetch(`/api/subscription/${action}`, {
+      const response = await fetchWithAuth(`/api/subscription/${action}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
