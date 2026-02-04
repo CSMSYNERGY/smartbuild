@@ -17,6 +17,7 @@ import {
   IconRefresh,
 } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
+import { fetchWithAuth } from "../utils/utils";
 
 export default function SmartBuild() {
   const [config, setConfig] = useState(null);
@@ -35,9 +36,8 @@ export default function SmartBuild() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/location/smartbuild/configuration", {
+      const response = await fetchWithAuth("/api/location/smartbuild/configuration", {
         method: "GET",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -76,12 +76,9 @@ export default function SmartBuild() {
     }
 
     try {
-      const response = await fetch("/api/location/smartbuild/authenticate", {
+      const response = await fetchWithAuth("/api/location/smartbuild/authenticate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           smartbuildUserId: username.trim(),
           smartbuildUserPassword: password,

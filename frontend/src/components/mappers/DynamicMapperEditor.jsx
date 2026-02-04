@@ -23,6 +23,7 @@ import {
   IconEdit,
 } from "@tabler/icons-react";
 import { useState, useEffect, useMemo } from "react";
+import { fetchWithAuth } from "../../utils/utils";
 import ObjectViewModal from "./ObjectViewModal";
 import ValuePropertiesInput from "./ValuePropertiesInput";
 import ValuePropertiesCard from "./ValuePropertiesCard";
@@ -83,12 +84,9 @@ export default function DynamicMapperEditor({
 
     setDynamicSearchLoading(true);
     try {
-      const searchResponse = await fetch(`/api/mappers/${mapperId}/search`, {
+      const searchResponse = await fetchWithAuth(`/api/mappers/${mapperId}/search`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query,
           page,
@@ -153,12 +151,9 @@ export default function DynamicMapperEditor({
     setViewingObjectData(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `/api/mappers/${mapperId}/object?mapperKey=${encodeURIComponent(key)}`,
-        {
-          method: "GET",
-          credentials: "include",
-        }
+        { method: "GET" }
       );
 
       if (!response.ok) {

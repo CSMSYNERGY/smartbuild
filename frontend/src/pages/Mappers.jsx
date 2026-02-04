@@ -26,6 +26,7 @@ import {
 } from "@tabler/icons-react";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchWithAuth } from "../utils/utils";
 
 export default function Mappers() {
   const navigate = useNavigate();
@@ -62,9 +63,8 @@ export default function Mappers() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/mappers", {
+      const response = await fetchWithAuth("/api/mappers", {
         method: "GET",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -83,9 +83,8 @@ export default function Mappers() {
 
   const fetchMapperTypes = async () => {
     try {
-      const response = await fetch("/api/mapper-types", {
+      const response = await fetchWithAuth("/api/mapper-types", {
         method: "GET",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -137,12 +136,9 @@ export default function Mappers() {
     setError(null);
 
     try {
-      const response = await fetch("/api/mappers", {
+      const response = await fetchWithAuth("/api/mappers", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: createName.trim(),
           type: createType,
@@ -180,9 +176,8 @@ export default function Mappers() {
 
     setDeleting(true);
     try {
-      const response = await fetch(`/api/mappers/${deletingMapper.id}`, {
+      const response = await fetchWithAuth(`/api/mappers/${deletingMapper.id}`, {
         method: "DELETE",
-        credentials: "include",
       });
 
       if (!response.ok) {

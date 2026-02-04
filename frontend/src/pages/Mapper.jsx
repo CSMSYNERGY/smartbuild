@@ -30,6 +30,7 @@ import {
 } from "@tabler/icons-react";
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { fetchWithAuth } from "../utils/utils";
 import CustomMapperEditor from "../components/mappers/CustomMapperEditor";
 import NonDynamicMapperEditor from "../components/mappers/NonDynamicMapperEditor";
 import DynamicMapperEditor from "../components/mappers/DynamicMapperEditor";
@@ -65,9 +66,8 @@ export default function Mapper() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/mappers/${mapperId}`, {
+      const response = await fetchWithAuth(`/api/mappers/${mapperId}`, {
         method: "GET",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -87,9 +87,8 @@ export default function Mapper() {
 
   const fetchMapperTypes = async () => {
     try {
-      const response = await fetch("/api/mapper-types", {
+      const response = await fetchWithAuth("/api/mapper-types", {
         method: "GET",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -113,12 +112,9 @@ export default function Mapper() {
     }
     
     try {
-      const response = await fetch(`/api/mappers/${mapperId}`, {
+      const response = await fetchWithAuth(`/api/mappers/${mapperId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
 
