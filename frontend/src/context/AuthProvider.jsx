@@ -26,21 +26,23 @@ export function AuthProvider({ children }) {
 
     try {
       // 1) Try existing session (JWT in HttpOnly cookie)
+      const isFramed = window.self !== window.top;
       const existing = await fetchMe();
       if (cancelledRef.current) return;
 
-      if (existing) {
-        setUser(existing.user || existing);
-        setEntitlement(existing.entitlement || null);
-        setLoading(false);
-        return;
-      }
+
 
       // 2) No session: if inside iframe, try SSO handshake
-      const isFramed = window.self !== window.top;
 
       if (!isFramed) {
-        throw new Error("Please use the 'Advanced Configuration' tab from the Marketplace to authenticate.");
+        if (existing) {
+          setUser(existing.user || existing);
+          setEntitlement(existing.entitlement || null);
+          setLoading(false);
+          return;
+        } else {
+          throw new Error("Missing reliable authentication source. Please use the navigation bar inside your web page to access the application.");
+        }
       }
 
       await getUserData();
