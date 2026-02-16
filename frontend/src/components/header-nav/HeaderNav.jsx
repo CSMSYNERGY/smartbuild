@@ -1,13 +1,6 @@
 // components/HeaderNav.jsx
 import { Link, useLocation } from "react-router-dom";
-import {
-  ActionIcon,
-  Anchor,
-  Group,
-  Title,
-  Text,
-} from "@mantine/core";
-import { IconExternalLink } from "@tabler/icons-react";
+import { Anchor, Group, Title, Text } from "@mantine/core";
 import { useAuth } from "../../context/AuthProvider.jsx";
 
 export default function HeaderNav() {
@@ -17,11 +10,10 @@ export default function HeaderNav() {
   const links = [
     { to: "/home", label: "Home" },
     { to: "/subscription", label: "Subscription" },
-    { to: "/configuration", label: "Configuration" },
+    { to: "/smartbuild", label: "Smart Build" },
+    { to: "/mappers", label: "Mappers" },
   ];
 
-  const isEmbedded =
-    typeof window !== "undefined" && window.self !== window.top;
 
   return (
     <Group
@@ -57,19 +49,6 @@ export default function HeaderNav() {
           </Text>
         )}
 
-        {isEmbedded && (
-          <ActionIcon
-            variant="subtle"
-            color="indigo"
-            aria-label="Open in new tab"
-            onClick={() => {
-              const appUrl = `${window.location.origin}/app/home`;
-              window.open(appUrl, "_blank", "noopener,noreferrer");
-            }}
-          >
-            <IconExternalLink stroke={1.8} size="1.25rem" />
-          </ActionIcon>
-        )}
       </Group>
     </Group>
   );

@@ -5,23 +5,33 @@ import {
 import {
   createOrEditJob,
   getJobData,
-  getSmartbuildToken,
   retrieveSmartbuildCustomFields,
+  getCreateOrEditJobMetaData,
+  getRetrieveSmartbuildJobMetaData,
+  removeProcessedKeys,
+  sanitizeInput,
+  getAuthenticatedSmartbuild,
 } from "../services/smartbuildService.js";
 import {
   retrieveOpportunityCustomFields,
   updateOpportunity,
 } from "../services/ghlService.js";
-import {
-  getAuthenticatedLocation,
-  getAuthenticatedSmartbuild,
-} from "../services/authService.js";
-import { AppError, ErrorCodes } from "../models/errors.js";
+import { getAuthenticatedLocation } from "../services/authService.js";
 import { retrieveOpportunityData } from "../services/ghlActionRequestHandler.js";
 import {
   convertDatesToGHLFormat,
   convertDatesToSmartBuildFormat,
 } from "../utils/smartbuildUtils.js";
+import { getLocationIdFromRequest } from "../utils/authUtils.js";
+import {
+  getMapperForLocation,
+  getMappersForLocation,
+  getMapperTypes,
+  getMapperValueForLocation,
+  updateMapperForLocation,
+} from "../services/mappersService.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
+import logger from "../config/logger.js";
 
 export const updateOpportunityAction = async (req, res) => {
   const locationId = getLocationIdFromRequest(req);
@@ -51,6 +61,100 @@ export const getOpportunityCustomFields = async (req, res, next) => {
     .json({ inputs: [{ section: "Custom Fields", fields: customFields }] });
 };
 
+export const getUpdateMapperDynamicFields = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, operation_type } = data;
+  if (!mapper_id || !operation_type) {
+    throw new AppError(
+      "Missing required fields: mapper_id, operation_type",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  if (operation_type !== "update" && operation_type !== "delete") {
+    throw new AppError(
+      "Invalid operation type: " + operation_type,
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  const mapperTypes = await getMapperTypes();
+  const mapperType = mapperTypes[mapper.type];
+  const mapperKeyInput = {
+    field: "mapping_key",
+    title: `Mapping Key (${mapperType.name} ${
+      mapperType.object?.key?.toUpperCase() || ""
+    })`,
+    fieldType: "string",
+    required: true,
+  };
+  const inputs = [mapperKeyInput];
+  if (operation_type === "update") {
+    const objectConfiguration = mapper.objectConfiguration;
+    Object.keys(objectConfiguration)
+      .sort(
+        (a, b) =>
+          Number(objectConfiguration[a]) - Number(objectConfiguration[b])
+      )
+      .forEach((key) => {
+        const mapperValueInput = {
+          field: key,
+          title: `${key} (${objectConfiguration[key]})`,
+          fieldType: "string",
+          required: false,
+          description: "test",
+        };
+        inputs.push(mapperValueInput);
+      });
+  }
+  return res.status(200).json({
+    inputs: [{ section: "Mapping information", fields: inputs }],
+  });
+};
+
+export const getGetMappingValueDynamicFields = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id } = data;
+  if (!mapper_id) {
+    throw new AppError(
+      "Missing required fields: mapper_id",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  const mapperTypes = await getMapperTypes();
+  const mapperType = mapperTypes[mapper.type];
+  let description = " ";
+  Object.keys(mapper.objectConfiguration)
+    .sort(
+      (a, b) =>
+        Number(mapper.objectConfiguration[a]) -
+        Number(mapper.objectConfiguration[b])
+    )
+    .forEach((key) => {
+      description += `${key}:${mapper.objectConfiguration[key]} `;
+    });
+  const mapperKeyInput = {
+    field: "mapping_key",
+    title: `Mapping Key (${mapperType.name} ${
+      mapperType.object?.key?.toUpperCase() || ""
+    })`,
+    fieldType: "string",
+    description,
+    required: true,
+  };
+  const inputs = [mapperKeyInput];
+
+  return res.status(200).json({
+    inputs: [{ section: "Mapping information", fields: inputs }],
+  });
+};
+
 export const getSmartbuildFields = async (req, res, next) => {
   const locationId = getLocationIdFromRequest(req);
 
@@ -74,10 +178,7 @@ export const retrieveSmartbuildJob = async (req, res) => {
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const smartbuildAuthentication = await getSmartbuildAuthentication(
-    data,
-    locationId
-  );
+  const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
   const { jobID, extraUserAnswers, extraTokenValues } =
     getRetrieveSmartbuildJobMetaData(data);
   const jobInfoIds = [
@@ -105,11 +206,9 @@ export const createOrEditSmartbuildJob = async (req, res) => {
 
   await getAuthenticatedLocation(locationId); //To prevent unauthorized access
 
-  const { isCreate, modelID, jobID } = getCreateOrEditJobMetaData(data);
-  const smartbuildAuthentication = await getSmartbuildAuthentication(
-    data,
-    locationId
-  );
+  const { isCreate, modelID, jobID, assignedUser } =
+    getCreateOrEditJobMetaData(data);
+  const smartbuildAuthentication = await getAuthenticatedSmartbuild(locationId);
 
   const cleanedBody = removeProcessedKeys(data);
   const convertedBody = convertDatesToSmartBuildFormat(cleanedBody);
@@ -118,118 +217,86 @@ export const createOrEditSmartbuildJob = async (req, res) => {
     smartbuildAuthentication.accessToken,
     isCreate ? "0" : jobID,
     modelID,
+    assignedUser,
     convertedBody
   );
   return res.status(200).json({ id: updatedOrCreatedJobId, created: isCreate });
 };
 
-const getLocationIdFromRequest = (req) => {
-  const locationId = req.headers["locationid"] || req.query.locationId;
-  if (!locationId) {
-    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
-  }
-  return locationId;
-};
-
-const getCreateOrEditJobMetaData = (body) => {
-  const isCreate = !body.jobID || body.jobID === "0";
-
-  if (isCreate) {
-    // For create requests, modelID must be present
-    if (!body.modelID) {
-      throw new AppError(
-        "ModelID is required for creating a new job",
-        400,
-        ErrorCodes.BAD_REQUEST
-      );
-    }
-    return {
-      isCreate: true,
-      modelID: body.modelID,
-      jobID: "0",
-    };
-  }
-
-  return {
-    isCreate: false,
-    modelID: null, // modelID is ignored for edit requests
-    jobID: body.jobID,
-  };
-};
-
-const getRetrieveSmartbuildJobMetaData = (body) => {
-  if (!body.jobID || body.jobID === "0") {
+export const getMapperValue = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, mapping_key } = data;
+  if (!mapper_id || !mapping_key) {
     throw new AppError(
-      "JobID is required for retrieving a job",
+      "Missing required fields: mapper_id, mapping_key",
+      400,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  const value = await getMapperValueForLocation(
+    locationId,
+    data.mapper_id,
+    data.mapping_key
+  );
+  return res.status(200).json({ ...value });
+};
+
+export const updateMapper = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const data = sanitizeInput(req.body?.data || req.body);
+  const { mapper_id, operation_type, mapping_key, ...inner_value_map } = data;
+
+  if (!mapper_id || !operation_type || !mapping_key) {
+    throw new AppError(
+      "Missing required fields: mapper_id, operation_type, mapping_key",
       400,
       ErrorCodes.BAD_REQUEST
     );
   }
 
-  let extraUserAnswers = [];
-  if (body.extraUserAnswers && typeof body.extraUserAnswers === "string") {
-    extraUserAnswers = body.extraUserAnswers
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  const mapper = await getMapperForLocation(locationId, mapper_id);
+  const configKeys = Object.keys(mapper.objectConfiguration);
+  let message = "";
+  if (operation_type === "update") {
+    const valueObj = mapper.map[mapping_key] || {};
+    const validKeys = Object.keys(inner_value_map).filter((innerKey) =>
+      configKeys.includes(innerKey)
+    );
+    validKeys.forEach((innerKey) => {
+      const value = inner_value_map[innerKey];
+      if (
+        value != null &&
+        typeof value === "string" &&
+        value.trim().length > 0
+      ) {
+        valueObj[innerKey] = value;
+      }
+    });
+    mapper.map[mapping_key] = valueObj;
+    message = `Mapping key ${mapping_key} updated successfully to ${valueObj}`;
+  } else if (operation_type === "delete") {
+    delete mapper.map[mapping_key];
+    message = `Mapping key ${mapping_key} deleted successfully`;
   }
-
-  let extraTokenValues = [];
-  if (body.extraTokenValues && typeof body.extraTokenValues === "string") {
-    extraTokenValues = body.extraTokenValues
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return {
-    jobID: body.jobID,
-    extraUserAnswers,
-    extraTokenValues,
-  };
+  logger.info("Mapping updated: ", {
+    locationId,
+    mapper_id,
+    operation_type,
+    mapping_key,
+    message,
+  });
+  await updateMapperForLocation(locationId, mapper_id, mapper);
+  return res.status(200).json({ message });
 };
 
-const removeProcessedKeys = (data) => {
-  const updatedData = { ...data };
-
-  delete updatedData.jobID;
-  delete updatedData.modelID;
-  delete updatedData.username;
-  delete updatedData.password;
-  return updatedData;
-};
-
-const getSmartbuildAuthentication = async (body, locationId) => {
-  const { username, password } = body;
-
-  if (username) {
-    return await getSmartbuildToken(username, password);
-  }
-
-  return await getAuthenticatedSmartbuild(locationId);
-};
-
-
-const sanitizeInput = (obj) => {
-  const cleaned = {};
-  for (const key in obj) {
-    const value = obj[key];
-    if (isValidValue(value)) {
-      cleaned[key] = value;
-    }
-  }
-  return cleaned;
-};
-
-const isValidValue = (value) => {
-  if (value === null || value === undefined) return false;
-
-  if (typeof value === "object") return true; // keep nested objects/arrays
-
-  if (typeof value === "string") {
-    const trimmed = value.trim().toLowerCase();
-    return trimmed !== "" && trimmed !== "nan";
-  }
-
-  return true; // optionally allow numbers, booleans, etc.
+export const getMappers = async (req, res) => {
+  const locationId = getLocationIdFromRequest(req);
+  const mappers = await getMappersForLocation(locationId);
+  return res.status(200).json({
+    options: mappers.map((mapper) => ({
+      value: mapper.id,
+      label: mapper.name,
+    })),
+  });
 };

@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { fetchMe, getUserData } from "../utils/utils";
+import { fetchMe, getUserData, setAuthToken } from "../utils/utils";
 import LoadingScreen from "../pages/LoadingScreen";
 import AuthError from "../pages/AuthError";
 
@@ -25,27 +25,34 @@ export function AuthProvider({ children }) {
     setError(null);
 
     try {
-      // 1) Try existing session (JWT in HttpOnly cookie)
+      const isFramed = window.self !== window.top;
+
+      // 1) Try existing token (sessionStorage: CPI_PLUGIN_TOKEN_<locationId>)
       const existing = await fetchMe();
       if (cancelledRef.current) return;
 
-      if (existing) {
-        setUser(existing.user || existing);
-        setEntitlement(existing.entitlement || null);
-        setLoading(false);
-        return;
-      }
-
-      // 2) No session: if inside iframe, try SSO handshake
-      const isFramed = window.self !== window.top;
-
       if (!isFramed) {
-        throw new Error("Please use the 'Advanced Configuration' tab from the Marketplace to authenticate.");
+        if (existing) {
+          setUser(existing.user || existing);
+          setEntitlement(existing.entitlement || null);
+          setLoading(false);
+          return;
+        } else {
+          throw new Error(
+            "Missing reliable authentication source. Please use the navigation bar inside your web page to access the application."
+          );
+        }
       }
 
-      await getUserData();
+      // 2) Inside iframe: SSO handshake – decrypt, get JWT, store in sessionStorage
+      const data = await getUserData();
+      if (cancelledRef.current) return;
 
-      // 3) Now session should exist: load user from /api/me
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+
+      // 3) Load user and entitlement from /api/me (with Authorization header)
       const authed = await fetchMe();
       if (cancelledRef.current) return;
 

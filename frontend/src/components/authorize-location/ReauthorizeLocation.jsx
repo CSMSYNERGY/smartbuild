@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Group, Text } from "@mantine/core";
 import { IconAlertCircle, IconExternalLink } from "@tabler/icons-react";
+import { fetchWithAuth } from "../../utils/utils";
 
 export default function ReauthorizeLocation() {
   const [isAuthorized, setIsAuthorized] = useState(null);
@@ -15,9 +16,8 @@ export default function ReauthorizeLocation() {
     try {
       setIsChecking(true);
       setError(null);
-      const response = await fetch("/api/location/check-authorization", {
+      const response = await fetchWithAuth("/api/location/check-authorization", {
         method: "GET",
-        credentials: "include",
       });
 
       if (response.ok) {

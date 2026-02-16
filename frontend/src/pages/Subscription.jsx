@@ -9,18 +9,21 @@ import {
   Stack,
   Text,
   Title,
-  Code,
   Divider,
+  Box,
 } from "@mantine/core";
 import {
-  IconAlertCircle,
   IconCheck,
   IconCreditCard,
   IconX,
   IconRefresh,
+  IconMail,
+  IconUser,
+  IconCalendar,
 } from "@tabler/icons-react";
 import { useAuth } from "../context/AuthProvider";
 import { useState, useEffect } from "react";
+import { fetchWithAuth } from "../utils/utils";
 import PaymentForm from "../components/payment-form/PaymentForm";
 
 export default function Subscription() {
@@ -37,11 +40,6 @@ export default function Subscription() {
   const subscriptionByThisUser = entitlement?.subscriptionByThisUser || false;
   const paymentDetails = entitlement?.paymentDetails || null;
 
-  const isPendingState =
-    status === "pending-cancel" ||
-    status === "pending-update-payment" ||
-    status === "pending-resume";
-
   useEffect(() => {
     fetchPlans();
   }, []);
@@ -50,9 +48,8 @@ export default function Subscription() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/subscription/plans", {
+      const response = await fetchWithAuth("/api/subscription/plans", {
         method: "GET",
-        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to fetch plans");
       const data = await response.json();
@@ -69,12 +66,9 @@ export default function Subscription() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await fetch(`/api/subscription/${action}`, {
+      const response = await fetchWithAuth(`/api/subscription/${action}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -117,20 +111,14 @@ export default function Subscription() {
   const getStatusBadge = () => {
     const statusColors = {
       active: "green",
-      "pending-cancel": "yellow",
       cancelled: "red",
       inactive: "gray",
-      "pending-update-payment": "yellow",
-      "pending-resume": "yellow",
     };
 
     const statusLabels = {
       active: "Active",
-      "pending-cancel": "Pending Cancel",
       cancelled: "Cancelled",
       inactive: "Inactive",
-      "pending-update-payment": "Pending Payment Update",
-      "pending-resume": "Pending Resume",
     };
 
     return (
@@ -144,29 +132,8 @@ export default function Subscription() {
     );
   };
 
-  const renderPendingNotification = () => {
-    if (!isPendingState) return null;
-
-    const messages = {
-      "pending-cancel": "Your subscription cancellation is being processed. Please wait for confirmation.",
-      "pending-update-payment": "Your payment update is being processed. Please wait for confirmation.",
-      "pending-resume": "Your subscription resumption is being processed. Please wait for confirmation.",
-    };
-
-    return (
-      <Alert
-        icon={<IconAlertCircle size="1rem" />}
-        title="Action Pending"
-        color="yellow"
-        variant="light"
-      >
-        {messages[status]}
-      </Alert>
-    );
-  };
-
   const renderActiveActions = () => {
-    if (status !== "active" || isPendingState) return null;
+    if (status !== "active") return null;
 
     return (
       <Stack gap="md">
@@ -193,11 +160,93 @@ export default function Subscription() {
         </Group>
         {subscriptionByThisUser && paymentDetails && (
           <Paper withBorder p="md" radius="md" mt="md">
-            <Stack gap="sm">
-              <Text fw={600}>Current Payment Details</Text>
-              <Code block fz="sm">
-                {JSON.stringify(paymentDetails, null, 2)}
-              </Code>
+            <Stack gap="md">
+              <Text fw={600}>Current Payment Method</Text>
+              <Group gap="lg" align="flex-start">
+                {/* Card Info */}
+                <Paper
+                  withBorder
+                  p="md"
+                  radius="md"
+                  style={{
+                    background: "linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-5) 100%)",
+                    minWidth: 280,
+                  }}
+                >
+                  <Stack gap="md">
+                    <Group justify="space-between" align="center">
+                      <IconCreditCard size={24} color="var(--mantine-color-gray-4)" />
+                      <Text size="xs" c="dimmed" tt="uppercase">
+                        Credit Card
+                      </Text>
+                    </Group>
+                    <Text
+                      ff="monospace"
+                      size="lg"
+                      fw={500}
+                      c="white"
+                      style={{ letterSpacing: 2 }}
+                    >
+                      {paymentDetails.maskedNumber || "•••• •••• •••• ••••"}
+                    </Text>
+                    <Group justify="space-between">
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Expires
+                        </Text>
+                        <Text size="sm" fw={500} c="white">
+                          {paymentDetails.exp
+                            ? `${paymentDetails.exp.slice(0, 2)}/${paymentDetails.exp.slice(2)}`
+                            : "-"}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </Stack>
+                </Paper>
+
+                {/* Billing Details */}
+                <Stack gap="sm" style={{ flex: 1 }}>
+                  {paymentDetails.billingEmail && (
+                    <Group gap="sm">
+                      <IconMail size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Billing Email
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.billingEmail}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                  {paymentDetails.billingName && (
+                    <Group gap="sm">
+                      <IconUser size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Billing Name
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.billingName}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                  {paymentDetails.exp && (
+                    <Group gap="sm">
+                      <IconCalendar size={16} color="var(--mantine-color-gray-5)" />
+                      <Box>
+                        <Text size="xs" c="dimmed">
+                          Expiration Date
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {paymentDetails.exp.slice(0, 2)}/20{paymentDetails.exp.slice(2)}
+                        </Text>
+                      </Box>
+                    </Group>
+                  )}
+                </Stack>
+              </Group>
             </Stack>
           </Paper>
         )}
@@ -206,7 +255,7 @@ export default function Subscription() {
   };
 
   const renderInactiveActions = () => {
-    if (status !== "inactive" || isPendingState) return null;
+    if (status !== "inactive") return null;
 
     return (
       <Stack gap="md">
@@ -260,7 +309,7 @@ export default function Subscription() {
   };
 
   const renderCancelledActions = () => {
-    if (status !== "cancelled" || isPendingState) return null;
+    if (status !== "cancelled") return null;
 
     return (
       <Stack gap="md">
@@ -337,8 +386,6 @@ export default function Subscription() {
           {success}
         </Alert>
       )}
-
-      {renderPendingNotification()}
 
       <Paper withBorder shadow="sm" radius="lg" p="lg">
         <Stack gap="md">

@@ -8,14 +8,14 @@ import {
   deleteSubscription,
 } from "./firestoreService.js";
 import { PlansConfig } from "../config/plansConfig.js";
-import { ErrorCodes } from "../models/errors.js";
+import { AppError, ErrorCodes } from "../models/errors.js";
 import {
   computeSubscriptionEndDate,
   isPlanValid,
   parseOrderId,
+  createOrderId,
 } from "../utils/paymentUtils.js";
 import logger from "../config/logger.js";
-import { AppError } from "../models/errors.js";
 import {
   updateGatewaySubscriptionPayment,
   createGatewaySubscription,
@@ -104,19 +104,7 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
       };
     }
 
-    // 2) Pending-cancel → we know user requested cancel,
-    // but we may not yet have the final end date from webhook.
-    if (status.includes("pending")) {
-      return {
-        status: status,
-        planId,
-        activeUntil: subscriptionEndMs ?? null,
-        entitlementUserId,
-        subscriptionId: null,
-      };
-    }
-
-    // 3) Cancelled → check if period is still running
+    // 2) Cancelled → check if period is still running
     if (status === "cancelled") {
       if (subscriptionEndMs && subscriptionEndMs > now) {
         // Cancelled but still in paid period
@@ -169,6 +157,35 @@ export const getEntitlementDetailsForLocation = async (locationId) => {
   }
 };
 
+/**
+ * Checks if a location has an active subscription (user still has access).
+ * getEntitlementDetailsForLocation already handles all the logic for checking
+ * if cancelled subscriptions are past their end date, so we just need to check
+ * if the status is "active" or "cancelled".
+ *
+ * @param {string} locationId - The location ID to check
+ * @returns {Promise<boolean>} - True if subscription is active, false otherwise
+ */
+export const isLocationSubscriptionActive = async (locationId) => {
+  try {
+    const entitlementDetails = await getEntitlementDetailsForLocation(
+      locationId
+    );
+    const status = entitlementDetails.status;
+
+    // getEntitlementDetailsForLocation already handles expiry checks for cancelled subscriptions
+    // So if status is "active" or "cancelled", subscription is active
+    return status === "active" || status === "cancelled";
+  } catch (error) {
+    logger.error(
+      `Error checking subscription status for location ${locationId}`,
+      error
+    );
+    // On error, assume not active to be safe
+    return false;
+  }
+};
+
 export const cancelSubscription = async (user) => {
   const DEPOSYT_PRIVATE_API_KEY = process.env.DEPOSYT_PRIVATE_API_KEY;
 
@@ -207,20 +224,23 @@ export const cancelSubscription = async (user) => {
       ErrorCodes.BAD_REQUEST
     );
   }
+  const now = Date.now();
+  logger.info(
+    `Pausing subscription ${subscriptionId} for location ${user.locationId}`
+  );
+  await pauseGatewaySubscription(subscriptionId, true);
+
   await saveEntitlement(user.locationId, {
-    status: "pending-cancel",
+    status: "cancelled",
     updatedAt: now,
   });
 
   await saveSubscription(subscriptionId, {
-    status: "pending-cancel",
+    status: "cancelled",
     updatedAt: now,
   });
-  await pauseGatewaySubscription(subscriptionId, true);
 
-  const now = Date.now();
-
-  return { ok: true, status: "pending-cancel" };
+  return { ok: true, status: "cancelled" };
 };
 
 export const updatePayment = async (user, paymentToken) => {
@@ -239,6 +259,18 @@ export const updatePayment = async (user, paymentToken) => {
     subscriptionId,
     paymentToken,
     paused: false,
+  });
+
+  const now = Date.now();
+
+  await saveEntitlement(user.locationId, {
+    status: "active",
+    updatedAt: now,
+  });
+
+  await saveSubscription(subscriptionId, {
+    status: "active",
+    updatedAt: now,
   });
 
   return { ok: true };
@@ -283,15 +315,15 @@ export const createSubscription = async (user, paymentToken, planId) => {
     paymentToken,
     planId,
     email: user.email,
-    orderId: `sub-${user.locationId}-${planId}-${Date.now()}`,
+    orderId: createOrderId(user.locationId, planId),
   });
 
   if (process.env.NODE_ENV === "development") {
     logger.info(`Subscription request sent and parsed:`, parsed);
   }
 
-  const subscriptionId = parsed.subscription_id;
-  const orderId = parsed.orderid;
+  const subscriptionId = parsed?.subscription_id;
+  const orderId = parsed?.orderid;
 
   if (!subscriptionId) {
     throw new AppError(
@@ -335,6 +367,11 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
     return;
   }
 
+  logger.info(
+    `Deposyt webhook received for eventType: ${eventType}`,
+    eventBody
+  );
+
   // Make sure this is one of *your* plans (you already implemented this)
   if (!isPlanValid(eventBody, PlansConfig.PLANS)) {
     logger.info(
@@ -342,11 +379,6 @@ export const handleSubscriptionEvent = async (eventType, eventBody) => {
     );
     return;
   }
-
-  logger.info(
-    `Deposyt webhook received for eventType: ${eventType}`,
-    eventBody
-  );
 
   switch (eventType) {
     case "recurring.subscription.delete":

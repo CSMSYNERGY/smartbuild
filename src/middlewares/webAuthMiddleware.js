@@ -1,21 +1,20 @@
-//webAuthMiddleware.js
-
+// webAuthMiddleware.js
 import jwt from "jsonwebtoken";
+
+const BEARER_PREFIX = "Bearer ";
 
 /**
  * Middleware for UI/Web API routes.
  *
- * - Reads HS256 JWT from SESSION cookie.
+ * - Reads HS256 JWT from Authorization: Bearer <token> header.
  * - Verifies signature with APP_JWT_SECRET.
  * - On success: attaches auth payload to req.webUser and calls next().
  * - On failure: returns 401 (does NOT throw).
  *
  * Requirements:
- * - cookie-parser registered before this middleware.
  * - APP_JWT_SECRET set in environment (.env / runtime).
  */
 export function requireWebSession(req, res, next) {
-  // Development mode: bypass authentication and use constant dev user
   if (process.env.NODE_ENV === "development") {
     req.webUser = {
       id: "g0KMCSyiM9dxTYz2R5SZ",
@@ -38,9 +37,14 @@ export function requireWebSession(req, res, next) {
         .json({ error: "Server misconfiguration: missing APP_JWT_SECRET" });
     }
 
-    const token = req.cookies?.SESSION;
+    const authHeader = req.headers?.authorization;
+    if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+      return res.status(401).json({ error: "Missing or invalid Authorization header" });
+    }
+
+    const token = authHeader.slice(BEARER_PREFIX.length).trim();
     if (!token) {
-      return res.status(401).json({ error: "Missing session" });
+      return res.status(401).json({ error: "Missing token" });
     }
 
     let payload;
@@ -49,11 +53,9 @@ export function requireWebSession(req, res, next) {
         algorithms: ["HS256"],
       });
     } catch (err) {
-      return res.status(401).json({ error: "Invalid or expired session" });
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    // Attach a normalized user object for downstream handlers
-    // Adjust fields to your signing payload shape.
     req.webUser = {
       id: payload.sub,
       email: payload.email,

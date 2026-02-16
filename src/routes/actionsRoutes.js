@@ -5,6 +5,11 @@ import {
   updateOpportunityAction,
   getOpportunityCustomFields,
   getSmartbuildFields,
+  getMapperValue,
+  getMappers,
+  updateMapper,
+  getUpdateMapperDynamicFields,
+  getGetMappingValueDynamicFields,
 } from "../controllers/actionsController.js";
 const router = express.Router();
 
@@ -13,5 +18,10 @@ router.post("/create-or-edit-smartbuild-job", createOrEditSmartbuildJob);
 router.post("/smartbuild-custom-fields", getSmartbuildFields);
 router.post("/update-opportunity", updateOpportunityAction);
 router.post("/opportunity-custom-fields", getOpportunityCustomFields);
+router.post("/get-mapper-value", getMapperValue);
+router.post("/update-mapper", updateMapper);
+router.post("/update-mapper-dynamic-fields", getUpdateMapperDynamicFields);
+router.post("/get-mapping-value-dynamic-fields", getGetMappingValueDynamicFields);
+router.get("/get-mappers", getMappers);
 
 export default router;

@@ -13,3 +13,40 @@ export const actionLogger = (req, res, next) => {
   });
   next();
 };
+
+/**
+ * Logs response data for action endpoints. Wraps res.json and res.send
+ * so the outgoing body is logged before being sent.
+ */
+export const actionResponseLogger = (req, res, next) => {
+  const originalJson = res.json.bind(res);
+  const originalSend = res.send.bind(res);
+
+  res.json = function (body) {
+    try {
+      logger.info("Action Response", {
+        path: req.path,
+        statusCode: res.statusCode,
+        body,
+      });
+    } catch (_) {
+      /* never let logging prevent the response */
+    }
+    return originalJson(body);
+  };
+
+  res.send = function (body) {
+    try {
+      logger.info("Action Response", {
+        path: req.path,
+        statusCode: res.statusCode,
+        body,
+      });
+    } catch (_) {
+      /* never let logging prevent the response */
+    }
+    return originalSend(body);
+  };
+
+  next();
+};

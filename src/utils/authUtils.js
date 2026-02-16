@@ -1,3 +1,5 @@
+import { AppError, ErrorCodes } from "../models/errors.js";
+
 export const hasRequiredScopes = (userScopeString) => {
   if (!userScopeString) return false;
 
@@ -18,4 +20,12 @@ export const isTokenExpired = (expires) => {
 
   const currentTime = new Date();
   return currentTime >= expires.toDate();
+};
+
+export const getLocationIdFromRequest = (req) => {
+  const locationId = req.headers["locationid"] || req.query.locationId;
+  if (!locationId) {
+    throw new AppError("No location id provided", 400, ErrorCodes.BAD_REQUEST);
+  }
+  return locationId;
 };
