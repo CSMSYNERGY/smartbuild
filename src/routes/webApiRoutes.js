@@ -17,6 +17,7 @@ import {
   getMapperTypesController,
   searchMapperObjectsDynamicController,
   getMapperObjectDynamicController,
+  getSmartbuildAttributeDefaultsController,
 } from "../controllers/webApiController.js";
 const router = express.Router();
 
@@ -33,6 +34,10 @@ router.post(
 router.get(
   "/location/smartbuild/configuration",
   getSmartbuildConfigurationnController
+);
+router.get(
+  "/location/smartbuild/attribute-defaults",
+  getSmartbuildAttributeDefaultsController
 );
 router.post("/subscription/create", createSubscriptionController);
 router.post("/subscription/cancel", cancelSubscriptionController);

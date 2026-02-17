@@ -7,8 +7,8 @@ import {
 } from "../services/subscriptionService.js";
 import { getSavedPlans } from "../services/subscriptionService.js";
 import logger from "../config/logger.js";
-import { AppError, ErrorCodes } from "../models/errors.js";
 import { checkLocationAuthorization } from "../services/authService.js";
+import { DEFAULT_JOB_INFO_IDS, DEFAULT_JOB_TOKEN_VALUES } from "../constants/smartbuildAttributeDefaults.js";
 import {
   authenticateSmartbuild,
   getAuthenticatedSmartbuild,
@@ -235,4 +235,12 @@ export const getMapperObjectDynamicController = async (req, res) => {
   }
   const result = await getMapperObjectDynamic(locationId, mapperId, mapperKey);
   res.status(200).json(result);
+};
+
+export const getSmartbuildAttributeDefaultsController = async (req, res) => {
+  const defaults = {
+    jobInfoIds: DEFAULT_JOB_INFO_IDS,
+    jobTokenValues: DEFAULT_JOB_TOKEN_VALUES,
+  };
+  res.status(200).json(defaults);
 };
