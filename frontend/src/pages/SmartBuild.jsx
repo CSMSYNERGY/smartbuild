@@ -13,11 +13,14 @@ import {
 import {
   IconAlertCircle,
   IconCheck,
+  IconExternalLink,
   IconKey,
   IconRefresh,
 } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import { fetchWithAuth } from "../utils/utils";
+
+const SMARTBUILD_API_HELP_URL = "https://postframesolver.azurewebsites.net/help";
 
 export default function SmartBuild() {
   const [config, setConfig] = useState(null);
@@ -27,10 +30,26 @@ export default function SmartBuild() {
   const [success, setSuccess] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [attributeDefaults, setAttributeDefaults] = useState(null);
 
   useEffect(() => {
     fetchConfiguration();
+    fetchAttributeDefaults();
   }, []);
+
+  const fetchAttributeDefaults = async () => {
+    try {
+      const response = await fetchWithAuth("/api/location/smartbuild/attribute-defaults", {
+        method: "GET",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAttributeDefaults(data);
+      }
+    } catch {
+      // Non-blocking; description card can still show without list data
+    }
+  };
 
   const fetchConfiguration = async () => {
     setLoading(true);
@@ -246,6 +265,55 @@ export default function SmartBuild() {
             </Stack>
           </form>
         </Stack>
+      </Paper>
+
+      <Paper withBorder shadow="sm" radius="lg" p="lg">
+        <Stack gap="md">
+          <Title order={4}>Requirements for Actions</Title>
+          <Text size="sm" c="dimmed">
+            In order for the actions to be working correctly, users must have the following properties defined inside the framer rules of job details. Also, for
+            the token values, returned job token values must be there.
+          </Text>
+          {attributeDefaults && (
+            <Stack gap="sm">
+              <div>
+                <Text size="sm" fw={600} mb={4}>
+                  Job Info IDs (framer rules)
+                </Text>
+                <Text size="xs" c="dimmed" component="pre" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {attributeDefaults.jobInfoIds?.join(", ") || "—"}
+                </Text>
+              </div>
+              <div>
+                <Text size="sm" fw={600} mb={4}>
+                  Job Token Values
+                </Text>
+                <Text size="xs" c="dimmed" component="pre" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {attributeDefaults.jobTokenValues?.join(", ") || "—"}
+                </Text>
+              </div>
+            </Stack>
+          )}
+        </Stack>
+      </Paper>
+
+      <Paper withBorder p="md" radius="md" bg="gray.0">
+        <Group gap="xs">
+          <IconExternalLink size={16} />
+          <Text size="sm">
+            SmartBuild API documentation:{" "}
+            <Text
+              component="a"
+              href={SMARTBUILD_API_HELP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              c="blue"
+              style={{ textDecoration: "underline" }}
+            >
+              {SMARTBUILD_API_HELP_URL}
+            </Text>
+          </Text>
+        </Group>
       </Paper>
     </Stack>
   );

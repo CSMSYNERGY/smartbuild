@@ -12,8 +12,8 @@ export const DEFAULT_JOB_INFO_IDS = [
   "CompanyName",
   "ContactName",
   "ForcastCloseDate",
-  "StartingModelId",
-  "ContactId",
+  "StartingModelID",
+  "ContactID",
 ];
 
 export const DEFAULT_JOB_TOKEN_VALUES = [
